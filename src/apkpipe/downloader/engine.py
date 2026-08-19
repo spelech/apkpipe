@@ -185,7 +185,6 @@ class DownloadEngine:
             raise
 
         try:
-
             attempts = 0
             while attempts <= self.max_retries:
                 attempts += 1
@@ -199,80 +198,79 @@ class DownloadEngine:
 
                     req = client.build_request("GET", url, headers=req_headers)
                     resp = await client.send(req, stream=True)
+                    try:
+                        if resp.status_code == 416 and existing_bytes > 0:
+                            # Range not satisfiable, restart from beginning
+                            await resp.aclose()
+                            if temp_part_path.exists():
+                                temp_part_path.unlink()
+                            existing_bytes = 0
+                            req_headers.pop("Range", None)
+                            req = client.build_request("GET", url, headers=req_headers)
+                            resp = await client.send(req, stream=True)
 
-                    if resp.status_code == 416 and existing_bytes > 0:
-                        # Range not satisfiable, restart from beginning
-                        await resp.aclose()
-                        if temp_part_path.exists():
-                            temp_part_path.unlink()
-                        existing_bytes = 0
-                        req_headers.pop("Range", None)
-                        req = client.build_request("GET", url, headers=req_headers)
-                        resp = await client.send(req, stream=True)
+                        if resp.status_code not in (200, 206):
+                            error_text = await resp.aread()
+                            raise DownloadHTTPError(
+                                f"HTTP {resp.status_code} while downloading {url}: {error_text.decode('utf-8', errors='ignore')[:200]}"
+                            )
 
-                    if resp.status_code not in (200, 206):
-                        error_text = await resp.aread()
-                        await resp.aclose()
-                        raise DownloadHTTPError(
-                            f"HTTP {resp.status_code} while downloading {url}: {error_text.decode('utf-8', errors='ignore')[:200]}"
-                        )
-
-                    # Determine total size
-                    total_bytes: Optional[int] = None
-                    file_mode = "wb"
-                    downloaded_bytes = 0
-
-                    if resp.status_code == 206:
-                        file_mode = "ab"
-                        downloaded_bytes = existing_bytes
-                        content_range = resp.headers.get("Content-Range", "")
-                        if "/" in content_range:
-                            try:
-                                total_bytes = int(content_range.split("/")[-1])
-                            except ValueError:
-                                total_bytes = None
-                        if total_bytes is None:
-                            cl = resp.headers.get("Content-Length")
-                            if cl and cl.isdigit():
-                                total_bytes = existing_bytes + int(cl)
-                    else:
-                        # HTTP 200: full file stream
+                        # Determine total size
+                        total_bytes: Optional[int] = None
                         file_mode = "wb"
                         downloaded_bytes = 0
-                        cl = resp.headers.get("Content-Length")
-                        if cl and cl.isdigit():
-                            total_bytes = int(cl)
 
-                    start_time = time.monotonic()
-                    bytes_this_session = 0
+                        if resp.status_code == 206:
+                            file_mode = "ab"
+                            downloaded_bytes = existing_bytes
+                            content_range = resp.headers.get("Content-Range", "")
+                            if "/" in content_range:
+                                try:
+                                    total_bytes = int(content_range.split("/")[-1])
+                                except ValueError:
+                                    total_bytes = None
+                            if total_bytes is None:
+                                cl = resp.headers.get("Content-Length")
+                                if cl and cl.isdigit():
+                                    total_bytes = existing_bytes + int(cl)
+                        else:
+                            # HTTP 200: full file stream
+                            file_mode = "wb"
+                            downloaded_bytes = 0
+                            cl = resp.headers.get("Content-Length")
+                            if cl and cl.isdigit():
+                                total_bytes = int(cl)
 
-                    progress = DownloadProgress(
-                        downloaded_bytes=downloaded_bytes,
-                        total_bytes=total_bytes,
-                        speed_bytes_sec=0.0,
-                        progress_percent=(downloaded_bytes / total_bytes * 100.0) if (total_bytes and total_bytes > 0) else 0.0,
-                        status="downloading",
-                    )
-                    await self._emit_progress(progress_callback, progress)
+                        start_time = time.monotonic()
+                        bytes_this_session = 0
 
-                    with open(temp_part_path, file_mode) as f:
-                        async for chunk in resp.aiter_bytes(chunk_size=self.chunk_size):
-                            if chunk:
-                                f.write(chunk)
-                                downloaded_bytes += len(chunk)
-                                bytes_this_session += len(chunk)
+                        progress = DownloadProgress(
+                            downloaded_bytes=downloaded_bytes,
+                            total_bytes=total_bytes,
+                            speed_bytes_sec=0.0,
+                            progress_percent=(downloaded_bytes / total_bytes * 100.0) if (total_bytes and total_bytes > 0) else 0.0,
+                            status="downloading",
+                        )
+                        await self._emit_progress(progress_callback, progress)
 
-                                elapsed = time.monotonic() - start_time
-                                speed = (bytes_this_session / elapsed) if elapsed > 0 else 0.0
-                                percent = (downloaded_bytes / total_bytes * 100.0) if (total_bytes and total_bytes > 0) else 0.0
+                        with open(temp_part_path, file_mode) as f:
+                            async for chunk in resp.aiter_bytes(chunk_size=self.chunk_size):
+                                if chunk:
+                                    f.write(chunk)
+                                    downloaded_bytes += len(chunk)
+                                    bytes_this_session += len(chunk)
 
-                                progress.downloaded_bytes = downloaded_bytes
-                                progress.speed_bytes_sec = speed
-                                progress.progress_percent = min(percent, 100.0)
-                                progress.status = "downloading"
-                                await self._emit_progress(progress_callback, progress)
+                                    elapsed = time.monotonic() - start_time
+                                    speed = (bytes_this_session / elapsed) if elapsed > 0 else 0.0
+                                    percent = (downloaded_bytes / total_bytes * 100.0) if (total_bytes and total_bytes > 0) else 0.0
 
-                    await resp.aclose()
+                                    progress.downloaded_bytes = downloaded_bytes
+                                    progress.speed_bytes_sec = speed
+                                    progress.progress_percent = min(percent, 100.0)
+                                    progress.status = "downloading"
+                                    await self._emit_progress(progress_callback, progress)
+                    finally:
+                        await resp.aclose()
 
                     # Atomic rename/move to destination
                     if dest_path.exists():
@@ -294,11 +292,11 @@ class DownloadEngine:
                     logger.warning(
                         "Download error attempt %d/%d for %s: %s",
                         attempts,
-                        self.max_retries,
+                        self.max_retries + 1,
                         url,
                         exc,
                     )
-                    if attempts >= self.max_retries:
+                    if attempts > self.max_retries:
                         raise DownloadError(f"Failed to download {url} after {attempts} attempts: {exc}") from exc
                     await asyncio.sleep(self.retry_delay * attempts)
                 except Exception as exc:
@@ -310,3 +308,4 @@ class DownloadEngine:
         finally:
             if client_created:
                 await client.aclose()
+
