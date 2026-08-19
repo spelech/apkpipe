@@ -518,12 +518,11 @@ async def test_watchlist_invalid_regex_validation(client):
 
 @pytest.mark.asyncio
 async def test_root_endpoint(client):
-    """Verify GET / returns application info and docs URL."""
+    """Verify GET / returns Web Dashboard HTML."""
     resp = await client.get("/")
     assert resp.status_code == 200
-    data = resp.json()
-    assert "name" in data
-    assert data["docs_url"] == "/docs"
+    assert "text/html" in resp.headers.get("content-type", "")
+    assert "APKPipe" in resp.text
 
 
 @pytest.mark.asyncio

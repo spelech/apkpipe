@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - APKPipe{% endblock %}
+
+{% block content %}
+<div x-data="settingsApp()" class="space-y-6 max-w-4xl mx-auto">
+
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div>
+      <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-white flex items-center gap-3">
+        Runtime Settings
+      </h1>
+      <p class="text-sm text-slate-400 mt-1">Configure resolver API keys, scraper endpoints, Nextcloud storage, and notification channels.</p>
+    </div>
+
+    <button 
+      type="button" 
+      @click="saveSettings()" 
+      :disabled="saving || loading"
+      class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/25 transition disabled:opacity-50">
+      <svg x-show="!saving" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+      <svg x-show="saving" class="animate-spin w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+      <span x-text="saving ? 'Saving...' : 'Save Settings'"></span>
+    </button>
+  </div>
+
+  <template x-if="loading">
+    <div class="glass-panel p-12 rounded-2xl border border-slate-800 text-center text-slate-400">
+      <div class="inline-flex items-center gap-2">
+        <svg class="animate-spin w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+        Loading current configuration...
+      </div>
+    </div>
+  </template>
+
+  <form x-show="!loading" @submit.prevent="saveSettings()" class="space-y-6">
+
+    <!-- Section 1: General Pipeline Configuration -->
+    <div class="glass-panel p-6 rounded-2xl border border-slate-800 space-y-4 shadow-xl">
+      <h2 class="text-base font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-3">
+        <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+        General Pipeline
+      </h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Application Name</label>
+          <input 
+            type="text" 
+            x-model="form.app_name" 
+            class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Poll Interval (seconds)</label>
+          <input 
+            type="number" 
+            x-model="form.poll_interval_seconds" 
+            class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Download Target Directory</label>
+          <input 
+            type="text" 
+            x-model="form.download_dir" 
+            class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm font-mono text-slate-100 focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Staging / Working Directory</label>
+          <input 
+            type="text" 
+            x-model="form.staging_dir" 
+            class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm font-mono text-slate-100 focus:outline-none focus:border-indigo-500">
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 pt-2">
+        <input 
+          type="checkbox" 
+          id="debug_checkbox" 
+          x-model="form.debug" 
+          class="rounded bg-slate-950 border-slate-700 text-indigo-600 focus:ring-indigo-500 h-4 w-4">
+        <label for="debug_checkbox" class="text-sm font-medium text-slate-300">Enable verbose debug logging</label>
+      </div>
+    </div>
+
+    <!-- Section 2: Real-Debrid Resolution -->
+    <div class="glass-panel p-6 rounded-2xl border border-slate-800 space-y-4 shadow-xl">
+      <h2 class="text-base font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-3">
+        <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+        Real-Debrid Tier 1 Resolver
+      </h2>
+
+      <div>
+        <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Real-Debrid API Token</label>
+        <div class="relative">
+          <input 
+            :type="showToken ? 'text' : 'password'" 
+            x-model="form.real_debrid_api_token" 
+            placeholder="Paste your Real-Debrid API key here" 
+            class="w-full pl-3.5 pr-20 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm font-mono text-slate-100 focus:outline-none focus:border-indigo-500">
+          <button 
+            type="button" 
+            @click="showToken = !showToken" 
+            class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-indigo-400 hover:text-indigo-300"
+            x-text="showToken ? 'Hide' : 'Show'">
+          </button>
+        </div>
+        <p class="text-xs text-slate-500 mt-1">Required for unthrottled premium multi-hoster unrestrict unzipping.</p>
+      </div>
+    </div>
+
+    <!-- Section 3: JDownloader Tier 2 Fallback -->
+    <div class="glass-panel p-6 rounded-2xl border border-slate-800 space-y-4 shadow-xl">
+      <h2 class="text-base font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-3">
+        <svg class="w-5 h-5 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+        JDownloader Tier 2 Fallback
+      </h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">MyJDownloader Email</label>
+          <input 
+            type="email" 
+            x-model="form.jdownloader_email" 
+            placeholder="user@example.com" 
+            class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">MyJDownloader Password</label>
+          <div class="relative">
+            <input 
+              :type="showJdPass ? 'text' : 'password'" 
+              x-model="form.jdownloader_password" 
+              class="w-full pl-3.5 pr-20 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+            <button 
+              type="button" 
+              @click="showJdPass = !showJdPass" 
+              class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-indigo-400 hover:text-indigo-300"
+              x-text="showJdPass ? 'Hide' : 'Show'">
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Device Name</label>
+          <input 
+            type="text" 
+            x-model="form.jdownloader_device_name" 
+            placeholder="e.g. Home-JDownloader" 
+            class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Watch Directory / DLC Ingest Folder</label>
+          <input 
+            type="text" 
+            x-model="form.jdownloader_watch_dir" 
+            placeholder="/data/jdownloader/watch" 
+            class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm font-mono text-slate-100 focus:outline-none focus:border-indigo-500">
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 4: Scraper Microservice & Nextcloud OCC -->
+    <div class="glass-panel p-6 rounded-2xl border border-slate-800 space-y-4 shadow-xl">
+      <h2 class="text-base font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-3">
+        <svg class="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>
+        Scraper & Nextcloud Ingestion
+      </h2>
+
+      <div>
+        <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Playwright Scraper Microservice URL</label>
+        <input 
+          type="url" 
+          x-model="form.scraper_url" 
+          placeholder="http://localhost:3000" 
+          class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm font-mono text-slate-100 focus:outline-none focus:border-indigo-500">
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Nextcloud URL</label>
+          <input 
+            type="url" 
+            x-model="form.nextcloud_url" 
+            placeholder="https://nextcloud.homelab.local" 
+            class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Nextcloud API Token</label>
+          <input 
+            type="password" 
+            x-model="form.nextcloud_token" 
+            class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm font-mono text-slate-100 focus:outline-none focus:border-indigo-500">
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Nextcloud OCC Scan Command</label>
+        <input 
+          type="text" 
+          x-model="form.nextcloud_occ_command" 
+          placeholder="occ files:scan --all or docker exec nextcloud occ files:scan --all" 
+          class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm font-mono text-slate-100 focus:outline-none focus:border-indigo-500">
+      </div>
+    </div>
+
+    <!-- Section 5: Notifications -->
+    <div class="glass-panel p-6 rounded-2xl border border-slate-800 space-y-4 shadow-xl">
+      <h2 class="text-base font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-3">
+        <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+        Notifications
+      </h2>
+
+      <div>
+        <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Apprise Gateway URL</label>
+        <input 
+          type="text" 
+          x-model="form.apprise_url" 
+          placeholder="e.g. tgram://bottoken/chatid or discord://webhook_id/token" 
+          class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm font-mono text-slate-100 focus:outline-none focus:border-indigo-500">
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Ntfy Topic / Endpoint</label>
+        <input 
+          type="text" 
+          x-model="form.ntfy_topic" 
+          placeholder="https://ntfy.sh/my_homelab_apkpipe" 
+          class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm font-mono text-slate-100 focus:outline-none focus:border-indigo-500">
+      </div>
+    </div>
+
+    <div class="flex justify-end pt-2">
+      <button 
+        type="submit" 
+        :disabled="saving"
+        class="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-base font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-xl shadow-indigo-500/25 transition disabled:opacity-50">
+        <span x-text="saving ? 'Saving Settings...' : 'Save All Settings'"></span>
+      </button>
+    </div>
+
+  </form>
+
+</div>
+{% endblock %}

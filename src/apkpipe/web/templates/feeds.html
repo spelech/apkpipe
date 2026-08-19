@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block title %}Feeds - APKPipe{% endblock %}
+
+{% block content %}
+<div x-data="feedsApp()" class="space-y-6">
+
+  <!-- Header & Actions -->
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div>
+      <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-white flex items-center gap-3">
+        Feed Sources
+        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20" x-text="feeds.length + ' Configured'">
+          0 Configured
+        </span>
+      </h1>
+      <p class="text-sm text-slate-400 mt-1">Manage RSS and forum release feeds for continuous polling and extraction.</p>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <button 
+        @click="pollAllFeeds()" 
+        :disabled="pollingAll || feeds.length === 0"
+        class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition disabled:opacity-50">
+        <svg :class="{'animate-spin text-sky-400': pollingAll}" class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+        </svg>
+        <span x-text="pollingAll ? 'Polling All...' : 'Poll All Feeds Now'"></span>
+      </button>
+
+      <button 
+        @click="openAddModal()" 
+        class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-sky-600 hover:bg-sky-500 text-white shadow-lg shadow-sky-500/25 transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+        Add Feed
+      </button>
+    </div>
+  </div>
+
+  <!-- Feeds Table -->
+  <div class="glass-panel rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-sm text-slate-300">
+        <thead class="bg-slate-900/80 text-xs uppercase font-semibold text-slate-400 border-b border-slate-800">
+          <tr>
+            <th class="px-6 py-4">Feed Name & Type</th>
+            <th class="px-6 py-4">Endpoint URL</th>
+            <th class="px-6 py-4">Poll Interval</th>
+            <th class="px-6 py-4">Last Polled</th>
+            <th class="px-6 py-4 text-center">Status</th>
+            <th class="px-6 py-4 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-800/80">
+          <template x-if="loading">
+            <tr>
+              <td colspan="6" class="px-6 py-12 text-center text-slate-500">
+                <div class="inline-flex items-center gap-2">
+                  <svg class="animate-spin w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                  Loading feed configurations...
+                </div>
+              </td>
+            </tr>
+          </template>
+
+          <template x-if="!loading && feeds.length === 0">
+            <tr>
+              <td colspan="6" class="px-6 py-12 text-center text-slate-500">
+                No feed sources configured yet. Click "Add Feed" to register an RSS or Mobilism feed.
+              </td>
+            </tr>
+          </template>
+
+          <template x-for="feed in feeds" :key="feed.id">
+            <tr class="hover:bg-slate-900/40 transition">
+              <td class="px-6 py-4">
+                <div class="font-bold text-white text-base" x-text="feed.name"></div>
+                <div class="mt-1">
+                  <span class="px-2 py-0.5 rounded text-[11px] font-mono bg-slate-800 text-sky-400 border border-slate-700" x-text="feed.feed_type"></span>
+                </div>
+              </td>
+
+              <td class="px-6 py-4 font-mono text-xs text-slate-400 max-w-xs truncate">
+                <a :href="feed.url" target="_blank" class="hover:text-sky-400 hover:underline" x-text="feed.url"></a>
+              </td>
+
+              <td class="px-6 py-4 text-xs font-semibold text-slate-300">
+                <span x-text="feed.poll_interval_minutes + ' min'"></span>
+              </td>
+
+              <td class="px-6 py-4 text-xs text-slate-400 font-mono">
+                <span x-text="formatDate(feed.last_polled_at)"></span>
+              </td>
+
+              <td class="px-6 py-4 text-center">
+                <button 
+                  @click="toggleEnabled(feed)" 
+                  :class="feed.enabled ? 'bg-emerald-600' : 'bg-slate-700'"
+                  class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none">
+                  <span 
+                    :class="feed.enabled ? 'translate-x-5' : 'translate-x-0'"
+                    class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out"></span>
+                </button>
+              </td>
+
+              <td class="px-6 py-4 text-right space-x-2">
+                <button 
+                  @click="pollSingle(feed)" 
+                  :disabled="pollingId === feed.id"
+                  class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/20 transition disabled:opacity-50">
+                  <span x-show="pollingId !== feed.id">Poll Now</span>
+                  <span x-show="pollingId === feed.id">Polling...</span>
+                </button>
+
+                <button 
+                  @click="openEditModal(feed)" 
+                  class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
+                  Edit
+                </button>
+
+                <button 
+                  @click="deleteFeed(feed)" 
+                  class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20 transition">
+                  Delete
+                </button>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Add/Edit Feed Modal -->
+  <div 
+    x-show="modalOpen" 
+    x-cloak
+    class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop"
+    x-transition:enter="transition ease-out duration-200"
+    x-transition:enter-start="opacity-0"
+    x-transition:enter-end="opacity-100"
+    x-transition:leave="transition ease-in duration-150"
+    x-transition:leave-start="opacity-100"
+    x-transition:leave-end="opacity-0">
+    
+    <div 
+      @click.away="closeModal()" 
+      class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5"
+      x-transition:enter="transition ease-out duration-200"
+      x-transition:enter-start="opacity-0 scale-95"
+      x-transition:enter-end="opacity-100 scale-100">
+      
+      <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+        <h3 class="text-lg font-bold text-white" x-text="modalMode === 'add' ? 'Add Feed Source' : 'Edit Feed Configuration'"></h3>
+        <button @click="closeModal()" class="text-slate-400 hover:text-white">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <form @submit.prevent="saveFeed()" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Feed Name *</label>
+          <input 
+            type="text" 
+            x-model="form.name" 
+            required 
+            placeholder="e.g. Mobilism Main Apps RSS" 
+            class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-sky-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Feed URL / Endpoint *</label>
+          <input 
+            type="url" 
+            x-model="form.url" 
+            required 
+            placeholder="https://forum.mobilism.org/feed.php?f=398" 
+            class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-sky-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Feed Type</label>
+            <select 
+              x-model="form.feed_type" 
+              class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-sky-500">
+              <option value="mobilism_rss">mobilism_rss</option>
+              <option value="generic_rss">generic_rss</option>
+              <option value="atom">atom</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Poll Frequency (min)</label>
+            <input 
+              type="number" 
+              x-model="form.poll_interval_minutes" 
+              min="1" 
+              max="1440" 
+              class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-sky-500">
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 pt-2">
+          <input 
+            type="checkbox" 
+            id="feed_enabled_checkbox" 
+            x-model="form.enabled" 
+            class="rounded bg-slate-950 border-slate-700 text-sky-600 focus:ring-sky-500 h-4 w-4">
+          <label for="feed_enabled_checkbox" class="text-sm font-medium text-slate-300">Enable automatic polling</label>
+        </div>
+
+        <div class="pt-4 flex items-center justify-end gap-3 border-t border-slate-800">
+          <button 
+            type="button" 
+            @click="closeModal()" 
+            class="px-4 py-2 rounded-xl text-sm font-medium text-slate-400 hover:text-slate-200">
+            Cancel
+          </button>
+          <button 
+            type="submit" 
+            :disabled="saving"
+            class="px-5 py-2 rounded-xl text-sm font-semibold bg-sky-600 hover:bg-sky-500 text-white shadow-lg transition flex items-center gap-2 disabled:opacity-50">
+            <span x-text="modalMode === 'add' ? 'Add Feed' : 'Update Feed'"></span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+
+{% block title %}Queue & History - APKPipe{% endblock %}
+
+{% block content %}
+<div x-data="historyApp()" class="space-y-6">
+
+  <!-- Header & Actions -->
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div>
+      <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-white flex items-center gap-3">
+        Download Queue & Audit History
+      </h1>
+      <p class="text-sm text-slate-400 mt-1">Monitor real-time download pipelines, resolver tiers, extraction tasks, and ingestion logs.</p>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <!-- Auto-refresh switch -->
+      <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300">
+        <div :class="autoRefresh ? 'pulse-dot text-emerald-400' : 'w-2 h-2 rounded-full bg-slate-600'"></div>
+        <span>Live Poll:</span>
+        <button 
+          @click="autoRefresh = !autoRefresh" 
+          :class="autoRefresh ? 'text-emerald-400 font-bold' : 'text-slate-500'" 
+          class="hover:underline"
+          x-text="autoRefresh ? 'ON (5s)' : 'PAUSED'">
+        </button>
+      </div>
+
+      <button 
+        @click="refreshAll(true)" 
+        :disabled="loading"
+        class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition disabled:opacity-50">
+        <svg :class="{'animate-spin': loading}" class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+        </svg>
+        Refresh
+      </button>
+    </div>
+  </div>
+
+  <!-- Tabs Navigation & Filter Bar -->
+  <div class="glass-panel p-4 rounded-2xl border border-slate-800 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+    <!-- Tabs -->
+    <div class="flex items-center gap-2 bg-slate-900/90 p-1 rounded-xl border border-slate-800">
+      <button 
+        @click="activeTab = 'queue'" 
+        :class="activeTab === 'queue' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'"
+        class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition">
+        <span>Active Queue</span>
+        <span 
+          :class="activeTab === 'queue' ? 'bg-indigo-700 text-white' : 'bg-slate-800 text-slate-400'"
+          class="px-2 py-0.5 rounded-full text-xs" 
+          x-text="queue.length">0</span>
+      </button>
+
+      <button 
+        @click="activeTab = 'history'" 
+        :class="activeTab === 'history' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'"
+        class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition">
+        <span>Completed History</span>
+        <span 
+          :class="activeTab === 'history' ? 'bg-indigo-700 text-white' : 'bg-slate-800 text-slate-400'"
+          class="px-2 py-0.5 rounded-full text-xs" 
+          x-text="history.length">0</span>
+      </button>
+    </div>
+
+    <!-- Search & Status Filters -->
+    <div class="flex items-center gap-3">
+      <div class="relative flex-1 md:w-64">
+        <input 
+          type="text" 
+          x-model="searchQuery" 
+          placeholder="Search releases..." 
+          class="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500">
+      </div>
+
+      <select 
+        x-model="statusFilter" 
+        class="px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
+        <option value="">All Statuses</option>
+        <option value="pending">Pending</option>
+        <option value="resolving">Resolving</option>
+        <option value="downloading">Downloading</option>
+        <option value="completed">Completed</option>
+        <option value="failed">Failed</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Content: Queue Tab View -->
+  <div x-show="activeTab === 'queue'" class="glass-panel rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-sm text-slate-300">
+        <thead class="bg-slate-900/80 text-xs uppercase font-semibold text-slate-400 border-b border-slate-800">
+          <tr>
+            <th class="px-6 py-4">Task ID & Release Title</th>
+            <th class="px-6 py-4">Version & Releaser</th>
+            <th class="px-6 py-4">Resolver Tier</th>
+            <th class="px-6 py-4">Status</th>
+            <th class="px-6 py-4">File Size</th>
+            <th class="px-6 py-4 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-800/80">
+          <template x-if="loading && queue.length === 0">
+            <tr>
+              <td colspan="6" class="px-6 py-12 text-center text-slate-500">
+                <div class="inline-flex items-center gap-2">
+                  <svg class="animate-spin w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                  Loading download queue...
+                </div>
+              </td>
+            </tr>
+          </template>
+
+          <template x-if="!loading && filteredQueue.length === 0">
+            <tr>
+              <td colspan="6" class="px-6 py-12 text-center text-slate-500">
+                No active or matching tasks currently in the queue.
+              </td>
+            </tr>
+          </template>
+
+          <template x-for="task in filteredQueue" :key="task.id">
+            <tr class="hover:bg-slate-900/40 transition">
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-mono text-slate-500" x-text="'#' + task.id"></span>
+                  <span class="font-bold text-white text-sm" x-text="task.feed_item_title"></span>
+                </div>
+                <template x-if="task.error_message">
+                  <div class="mt-1 text-xs text-rose-400 flex items-center gap-1.5" title="Error details">
+                    <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <span class="truncate max-w-md" x-text="task.error_message"></span>
+                  </div>
+                </template>
+              </td>
+
+              <td class="px-6 py-4">
+                <div class="text-xs text-slate-300 font-semibold" x-text="'v' + (task.matched_version || 'unknown')"></div>
+                <div class="text-xs text-indigo-400 font-mono mt-0.5" x-text="task.matched_releaser || '-'"></div>
+              </td>
+
+              <td class="px-6 py-4">
+                <template x-if="task.download_tier === 'real_debrid'">
+                  <span class="badge badge-tier-rd">Real-Debrid</span>
+                </template>
+                <template x-if="task.download_tier === 'jdownloader'">
+                  <span class="badge badge-tier-jd">JDownloader</span>
+                </template>
+                <template x-if="task.download_tier === 'direct'">
+                  <span class="badge badge-tier-direct">Direct HTTP</span>
+                </template>
+                <template x-if="!task.download_tier">
+                  <span class="text-xs text-slate-500 font-mono">Pending</span>
+                </template>
+              </td>
+
+              <td class="px-6 py-4">
+                <span 
+                  :class="{
+                    'badge-pending': task.status === 'pending',
+                    'badge-resolving': task.status === 'resolving',
+                    'badge-downloading': task.status === 'downloading',
+                    'badge-completed': task.status === 'completed',
+                    'badge-failed': task.status === 'failed'
+                  }"
+                  class="badge" 
+                  x-text="task.status">
+                </span>
+              </td>
+
+              <td class="px-6 py-4 font-mono text-xs text-slate-300">
+                <span x-text="formatBytes(task.file_size)"></span>
+              </td>
+
+              <td class="px-6 py-4 text-right space-x-2">
+                <template x-if="task.status === 'failed' || task.status === 'pending'">
+                  <button 
+                    @click="retryTask(task)" 
+                    class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/20 transition">
+                    Retry
+                  </button>
+                </template>
+
+                <button 
+                  @click="deleteTask(task)" 
+                  class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20 transition">
+                  Cancel
+                </button>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Content: History Tab View -->
+  <div x-show="activeTab === 'history'" class="glass-panel rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-sm text-slate-300">
+        <thead class="bg-slate-900/80 text-xs uppercase font-semibold text-slate-400 border-b border-slate-800">
+          <tr>
+            <th class="px-6 py-4">App & Version</th>
+            <th class="px-6 py-4">Releaser</th>
+            <th class="px-6 py-4">Staged Target Path</th>
+            <th class="px-6 py-4">File Size</th>
+            <th class="px-6 py-4">Duration</th>
+            <th class="px-6 py-4">Tier</th>
+            <th class="px-6 py-4">Completed At</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-800/80">
+          <template x-if="!loading && filteredHistory.length === 0">
+            <tr>
+              <td colspan="7" class="px-6 py-12 text-center text-slate-500">
+                No completed download records found.
+              </td>
+            </tr>
+          </template>
+
+          <template x-for="item in filteredHistory" :key="item.id">
+            <tr class="hover:bg-slate-900/40 transition">
+              <td class="px-6 py-4">
+                <div class="font-bold text-white text-sm" x-text="item.app_name"></div>
+                <div class="text-xs text-slate-400 font-mono mt-0.5" x-text="'v' + (item.version || '-')"></div>
+              </td>
+
+              <td class="px-6 py-4 font-mono text-xs text-indigo-400">
+                <span x-text="item.releaser || '-'"></span>
+              </td>
+
+              <td class="px-6 py-4 font-mono text-xs text-slate-400 max-w-xs truncate" :title="item.target_path">
+                <span x-text="item.target_path || '-'"></span>
+              </td>
+
+              <td class="px-6 py-4 font-mono text-xs text-emerald-400 font-semibold">
+                <span x-text="formatBytes(item.file_size)"></span>
+              </td>
+
+              <td class="px-6 py-4 text-xs text-slate-400 font-mono">
+                <span x-text="formatDuration(item.duration_seconds)"></span>
+              </td>
+
+              <td class="px-6 py-4">
+                <template x-if="item.download_tier === 'real_debrid'">
+                  <span class="badge badge-tier-rd">Real-Debrid</span>
+                </template>
+                <template x-if="item.download_tier === 'jdownloader'">
+                  <span class="badge badge-tier-jd">JDownloader</span>
+                </template>
+                <template x-if="item.download_tier === 'direct'">
+                  <span class="badge badge-tier-direct">Direct HTTP</span>
+                </template>
+                <template x-if="!item.download_tier">
+                  <span class="text-xs text-slate-500 font-mono">-</span>
+                </template>
+              </td>
+
+              <td class="px-6 py-4 font-mono text-xs text-slate-400">
+                <span x-text="formatDate(item.downloaded_at)"></span>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
