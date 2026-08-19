@@ -174,3 +174,7 @@ class ResolutionManager:
             if res:
                 resolved_items.append(res)
         return resolved_items
+
+    # Alias for resolve
+    resolve_links = resolve
+

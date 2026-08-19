@@ -1012,3 +1012,13 @@ async def test_resolution_manager_edge_cases():
     assert resolved is not None
     assert resolved.download_url == "https://example.com/app.apk"
 
+
+@pytest.mark.asyncio
+async def test_resolution_manager_resolve_links_alias():
+    """Test that resolve_links is an alias for resolve on ResolutionManager."""
+    manager = ResolutionManager()
+    res = await manager.resolve_links("https://example.com/app.apk")
+    assert res is not None
+    assert res.tier == "scraper_direct"
+
+
