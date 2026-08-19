@@ -72,14 +72,14 @@ async def test_tool_registry_and_schemas():
 
 @pytest.mark.asyncio
 async def test_mcp_initialize():
-    """Verify MCP initialize returns 2024-11-05 protocol version and capabilities."""
+    """Verify MCP initialize and server/discover returns 2026-07-28 protocol version and capabilities."""
     server = McpServer()
     req = {
         "jsonrpc": "2.0",
         "id": 1,
         "method": "initialize",
         "params": {
-            "protocolVersion": "2024-11-05",
+            "protocolVersion": "2026-07-28",
             "capabilities": {},
             "clientInfo": {"name": "test-client", "version": "1.0.0"},
         },
@@ -87,9 +87,21 @@ async def test_mcp_initialize():
     resp = await server.handle_jsonrpc(req)
     assert resp["jsonrpc"] == "2.0"
     assert resp["id"] == 1
-    assert resp["result"]["protocolVersion"] == "2024-11-05"
+    assert resp["result"]["protocolVersion"] == "2026-07-28"
     assert "tools" in resp["result"]["capabilities"]
     assert resp["result"]["serverInfo"]["name"] == "apkpipe"
+
+    # Also test server/discover (MCP 2026-07-28 RC)
+    req_disc = {
+        "jsonrpc": "2.0",
+        "id": 101,
+        "method": "server/discover",
+        "params": {},
+    }
+    resp_disc = await server.handle_jsonrpc(req_disc)
+    assert resp_disc["jsonrpc"] == "2.0"
+    assert resp_disc["id"] == 101
+    assert resp_disc["result"]["protocolVersion"] == "2026-07-28"
 
 
 @pytest.mark.asyncio

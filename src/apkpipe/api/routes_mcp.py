@@ -1,4 +1,4 @@
-"""Model Context Protocol (MCP 2024-11-05) FastAPI Router Integration."""
+"""Model Context Protocol (MCP 2026-07-28 RC) FastAPI Router Integration."""
 
 from apkpipe.mcp.server import McpServer
 

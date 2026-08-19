@@ -1,4 +1,4 @@
-"""Model Context Protocol (MCP 2024-11-05) Server and Tool Registry for APKPipe."""
+"""Model Context Protocol (MCP 2026-07-28 RC) Server and Tool Registry for APKPipe."""
 
 from apkpipe.mcp.server import McpServer
 from apkpipe.mcp.tools import (

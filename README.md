@@ -269,7 +269,7 @@ APKPipe emits structured event notifications on:
 
 ## 🤖 Model Context Protocol (MCP) Server
 
-APKPipe exposes a native **MCP 2024-11-05 Server** allowing AI assistants (Claude Desktop, Cursor, Antigravity `mcp-router`) to manage watchlists, inspect feeds, trigger polls, and download releases autonomously.
+APKPipe exposes a native **MCP 2026-07-28 (RC) Server** allowing AI assistants (Claude Desktop, Cursor, Antigravity `mcp-router`) to manage watchlists, inspect feeds, trigger polls, and download releases autonomously.
 
 ### Available MCP Tools
 

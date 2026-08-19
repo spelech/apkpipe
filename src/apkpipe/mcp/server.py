@@ -1,4 +1,4 @@
-"""MCP 2024-11-05 Server Protocol, JSON-RPC 2.0 Handler, and SSE/HTTP Transports."""
+"""MCP 2026-07-28 Server Protocol (RC), JSON-RPC 2.0 Handler, and SSE/HTTP Transports."""
 
 import asyncio
 import json
@@ -14,13 +14,13 @@ from apkpipe.mcp.tools import ALL_TOOLS, execute_tool
 
 logger = logging.getLogger(__name__)
 
-MCP_PROTOCOL_VERSION = "2024-11-05"
+MCP_PROTOCOL_VERSION = "2026-07-28"
 SERVER_NAME = "apkpipe"
 SERVER_VERSION = "0.1.0"
 
 
 class McpServer:
-    """Model Context Protocol (MCP 2024-11-05) Server supporting JSON-RPC 2.0, SSE, and HTTP transports."""
+    """Model Context Protocol (MCP 2026-07-28 RC) Server supporting JSON-RPC 2.0, SSE, and HTTP transports."""
 
     def __init__(self) -> None:
         """Initialize McpServer instance with active session registry."""
@@ -52,15 +52,23 @@ class McpServer:
             logger.debug("Received MCP notification: %s", method)
             return None
 
-        # 1. initialize
-        if method == "initialize":
+        # 1. initialize / server/discover
+        if method in ("initialize", "server/discover", "discover"):
+            client_proto = params.get("protocolVersion") or MCP_PROTOCOL_VERSION
             return {
                 "jsonrpc": "2.0",
                 "id": msg_id,
                 "result": {
-                    "protocolVersion": MCP_PROTOCOL_VERSION,
+                    "protocolVersion": client_proto if client_proto in ("2026-07-28", "2024-11-05") else MCP_PROTOCOL_VERSION,
                     "capabilities": {
                         "tools": {
+                            "listChanged": False,
+                        },
+                        "prompts": {
+                            "listChanged": False,
+                        },
+                        "resources": {
+                            "subscribe": False,
                             "listChanged": False,
                         },
                     },

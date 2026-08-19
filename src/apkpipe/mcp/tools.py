@@ -1,4 +1,4 @@
-"""MCP 2024-11-05 Tool Registry and Handlers for APKPipe."""
+"""MCP 2026-07-28 (RC) Tool Registry and Handlers for APKPipe."""
 
 from datetime import datetime, timezone
 import json
