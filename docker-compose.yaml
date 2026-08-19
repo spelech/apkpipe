@@ -1,0 +1,77 @@
+services:
+  apkpipe:
+    image: ghcr.io/spelech/apkpipe:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: apkpipe
+    restart: unless-stopped
+    ports:
+      - "8429:8000"
+    environment:
+      - APKPIPE_APP_NAME=APKPipe
+      - APKPIPE_DEBUG=false
+      - APKPIPE_HOST=0.0.0.0
+      - APKPIPE_PORT=8000
+      - APKPIPE_DATABASE_URL=sqlite+aiosqlite:////data/apkpipe.db
+      - APKPIPE_DOWNLOAD_DIR=/downloads
+      - APKPIPE_STAGING_DIR=/data/staging
+      - APKPIPE_POLL_INTERVAL_SECONDS=900
+      # Tier 1 Link Resolver: Real-Debrid
+      - APKPIPE_REAL_DEBRID_API_TOKEN=${APKPIPE_REAL_DEBRID_API_TOKEN:-}
+      # Tier 2 Link Resolver: JDownloader 2 (Optional)
+      - APKPIPE_JDOWNLOADER_EMAIL=${APKPIPE_JDOWNLOADER_EMAIL:-}
+      - APKPIPE_JDOWNLOADER_PASSWORD=${APKPIPE_JDOWNLOADER_PASSWORD:-}
+      - APKPIPE_JDOWNLOADER_DEVICE_NAME=${APKPIPE_JDOWNLOADER_DEVICE_NAME:-}
+      - APKPIPE_JDOWNLOADER_WATCH_DIR=/data/jd_watch
+      # Tier 3 Link Resolver: Playwright Scraper (Optional)
+      - APKPIPE_SCRAPER_URL=http://scraper:8080
+      # Homelab Ingestion & Notifications
+      - APKPIPE_NEXTCLOUD_URL=${APKPIPE_NEXTCLOUD_URL:-http://nextcloud:80}
+      - APKPIPE_NEXTCLOUD_TOKEN=${APKPIPE_NEXTCLOUD_TOKEN:-}
+      - APKPIPE_NEXTCLOUD_OCC_COMMAND=${APKPIPE_NEXTCLOUD_OCC_COMMAND:-docker exec nextcloud-aio-nextcloud sudo -u www-data php /var/www/html/occ files:scan --path="{path}"}
+      - APKPIPE_APPRISE_URL=${APKPIPE_APPRISE_URL:-http://apprise:8000/notify/apprise}
+      - APKPIPE_NTFY_TOPIC=${APKPIPE_NTFY_TOPIC:-apkpipe-alerts}
+    volumes:
+      - ./data:/data
+      - /drives/storage/Nextcloud/APKs:/downloads
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    labels:
+      - "caddy=apk.wileyriley.com"
+      - "caddy.reverse_proxy={{upstreams 8000}}"
+      - "caddy.import=tinyauth"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - default
+      - caddy
+
+  # Optional companion service: Headless JDownloader 2 (Tier 2 Fallback)
+  # jdownloader:
+  #   image: jlesage/jdownloader-2:latest
+  #   container_name: apkpipe-jdownloader
+  #   restart: unless-stopped
+  #   environment:
+  #     - USER_ID=1000
+  #     - GROUP_ID=1000
+  #     - MYJDOWNLOADER_EMAIL=${APKPIPE_JDOWNLOADER_EMAIL}
+  #     - MYJDOWNLOADER_PASSWORD=${APKPIPE_JDOWNLOADER_PASSWORD}
+  #     - MYJDOWNLOADER_DEVICENAME=${APKPIPE_JDOWNLOADER_DEVICE_NAME:-APKPipe-JD2}
+  #   volumes:
+  #     - ./data/jd_config:/config:rw
+  #     - /drives/storage/Nextcloud/APKs:/output:rw
+  #     - ./data/jd_watch:/watch:rw
+  #   ports:
+  #     - "5800:5800"
+  #   networks:
+  #     - default
+
+networks:
+  default:
+    name: apkpipe_net
+  caddy:
+    external: true
