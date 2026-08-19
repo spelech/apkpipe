@@ -1,4 +1,4 @@
-"""Feeds module for APKPipe RSS parsing and watchlist matching."""
+"""Feeds module for APKPipe RSS parsing, watchlist matching, and background polling."""
 
 from apkpipe.feeds.matcher import (
     MatchResult,
@@ -11,6 +11,7 @@ from apkpipe.feeds.parser import (
     extract_title_metadata,
     parse_feed,
 )
+from apkpipe.feeds.poller import FeedPoller
 
 __all__ = [
     "FeedItem",
@@ -20,4 +21,5 @@ __all__ = [
     "MatchResult",
     "is_version_acceptable",
     "match_feed_item",
+    "FeedPoller",
 ]
