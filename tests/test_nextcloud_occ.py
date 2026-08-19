@@ -122,7 +122,7 @@ async def test_trigger_occ_custom_command_success():
     )
     mock_proc.returncode = 0
 
-    with patch("asyncio.create_subprocess_shell", return_value=mock_proc) as mock_shell:
+    with patch("asyncio.create_subprocess_exec", return_value=mock_proc) as mock_shell:
         result = await client.trigger_occ_scan(
             path="/data/downloads/Spotify/Spotify v8.9.0.apk",
             user="admin",
@@ -134,7 +134,7 @@ async def test_trigger_occ_custom_command_success():
         assert result.scanned_files_count == 2
         assert result.error is None
         mock_shell.assert_awaited_once()
-        cmd_executed = mock_shell.await_args[0][0]
+        cmd_executed = " ".join(mock_shell.await_args[0])
         assert "docker exec -u 33 nextcloud php occ files:scan" in cmd_executed
         assert "--path=" in cmd_executed
 
@@ -148,10 +148,10 @@ async def test_trigger_occ_custom_command_user_only():
     mock_proc.communicate.return_value = (b"Scanned user", b"")
     mock_proc.returncode = 0
 
-    with patch("asyncio.create_subprocess_shell", return_value=mock_proc) as mock_shell:
+    with patch("asyncio.create_subprocess_exec", return_value=mock_proc) as mock_shell:
         result = await client.trigger_occ_scan(user="admin")
         assert result.success is True
-        cmd_executed = mock_shell.await_args[0][0]
+        cmd_executed = " ".join(mock_shell.await_args[0])
         assert "admin" in cmd_executed
 
 
@@ -166,7 +166,7 @@ async def test_trigger_occ_custom_command_explicit_override():
     mock_proc.communicate.return_value = (b"Scanned", b"")
     mock_proc.returncode = 0
 
-    with patch("asyncio.create_subprocess_shell", return_value=mock_proc):
+    with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
         result = await client.trigger_occ_scan(
             path="/path/to/scan",
             strategy=NextcloudStrategy.CUSTOM_COMMAND,
@@ -186,11 +186,11 @@ async def test_trigger_occ_custom_command_rescan_all():
     mock_proc.communicate.return_value = (b"Scan completed", b"")
     mock_proc.returncode = 0
 
-    with patch("asyncio.create_subprocess_shell", return_value=mock_proc) as mock_shell:
+    with patch("asyncio.create_subprocess_exec", return_value=mock_proc) as mock_shell:
         result = await client.trigger_occ_scan(rescan_all=True)
 
         assert result.success is True
-        cmd_executed = mock_shell.await_args[0][0]
+        cmd_executed = " ".join(mock_shell.await_args[0])
         assert "--all" in cmd_executed
 
 
@@ -205,7 +205,7 @@ async def test_trigger_occ_custom_command_failure():
     mock_proc.communicate.return_value = (b"", b"Error: path does not exist")
     mock_proc.returncode = 1
 
-    with patch("asyncio.create_subprocess_shell", return_value=mock_proc):
+    with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
         result = await client.trigger_occ_scan(path="/nonexistent")
 
         assert result.success is False
@@ -218,7 +218,7 @@ async def test_trigger_occ_custom_command_generic_exception():
     """Verify custom command handles unexpected OS error gracefully."""
     client = NextcloudClient(nextcloud_occ_command="php occ files:scan")
 
-    with patch("asyncio.create_subprocess_shell", side_effect=OSError("OS fork failed")):
+    with patch("asyncio.create_subprocess_exec", side_effect=OSError("OS fork failed")):
         result = await client.trigger_occ_scan(path="/test")
         assert result.success is False
         assert "OS fork failed" in result.error

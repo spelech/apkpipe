@@ -151,23 +151,25 @@ class NextcloudClient:
         rescan_all: bool = False,
     ) -> OccScanResult:
         """Execute custom configured shell command."""
-        cmd = self.nextcloud_occ_command.strip()
+        import shlex
+        cmd_args = shlex.split(self.nextcloud_occ_command.strip())
 
         if rescan_all:
-            if "--all" not in cmd:
-                cmd += " --all"
+            if "--all" not in cmd_args:
+                cmd_args.append("--all")
         elif path is not None:
             scan_path = format_scan_path(path, user=user)
-            if "--path=" not in cmd:
-                cmd += f' --path="{scan_path}"'
+            has_path = any(arg.startswith("--path=") for arg in cmd_args)
+            if not has_path:
+                cmd_args.append(f"--path={scan_path}")
         elif user is not None:
-            if user not in cmd:
-                cmd += f" {user}"
+            if user not in cmd_args:
+                cmd_args.append(user)
 
         start_time = time.monotonic()
         try:
-            proc = await asyncio.create_subprocess_shell(
-                cmd,
+            proc = await asyncio.create_subprocess_exec(
+                *cmd_args,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )

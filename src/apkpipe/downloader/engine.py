@@ -81,7 +81,7 @@ class DownloadEngine:
     async def __aenter__(self) -> "DownloadEngine":
         """Async context manager enter."""
         if self._client is None:
-            self._client = httpx.AsyncClient(timeout=self.timeout, follow_redirects=True)
+            self._client = httpx.AsyncClient(timeout=httpx.Timeout(connect=15.0, read=60.0, write=30.0, pool=30.0), follow_redirects=True)
         return self
 
     async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
@@ -95,7 +95,7 @@ class DownloadEngine:
         """Return the active HTTP client or create a temporary one."""
         if self._client is not None:
             return self._client
-        return httpx.AsyncClient(timeout=self.timeout, follow_redirects=True)
+        return httpx.AsyncClient(timeout=httpx.Timeout(connect=15.0, read=60.0, write=30.0, pool=30.0), follow_redirects=True)
 
     def _resolve_target_path(
         self,
@@ -176,7 +176,7 @@ class DownloadEngine:
 
             client = self._client
             if client is None:
-                client = httpx.AsyncClient(timeout=self.timeout, follow_redirects=True)
+                client = httpx.AsyncClient(timeout=httpx.Timeout(connect=15.0, read=60.0, write=30.0, pool=30.0), follow_redirects=True)
                 client_created = True
         except Exception as exc:
             if not isinstance(exc, DownloadError):

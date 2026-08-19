@@ -75,7 +75,11 @@ class ArchiveExtractor:
         """Extract ZIP archive."""
         try:
             with zipfile.ZipFile(archive_path, "r") as zf:
-                zf.extractall(target_dir)
+                for member in zf.infolist():
+                    member_path = (target_dir / member.filename).resolve()
+                    if not str(member_path).startswith(str(target_dir.resolve())):
+                        raise CorruptedArchiveError(f"Zip slip vulnerability detected: {member.filename}")
+                    zf.extract(member, target_dir)
         except (zipfile.BadZipFile, zipfile.LargeZipFile, EOFError, OSError) as exc:
             raise CorruptedArchiveError(f"Corrupted or invalid zip archive '{archive_path}': {exc}") from exc
 
@@ -83,7 +87,11 @@ class ArchiveExtractor:
         """Extract TAR/TGZ archive."""
         try:
             with tarfile.open(archive_path, "r:*") as tf:
-                tf.extractall(target_dir)
+                for member in tf.getmembers():
+                    member_path = (target_dir / member.name).resolve()
+                    if not str(member_path).startswith(str(target_dir.resolve())):
+                        raise CorruptedArchiveError(f"Tar slip vulnerability detected: {member.name}")
+                    tf.extract(member, target_dir)
         except (tarfile.TarError, EOFError, OSError) as exc:
             raise CorruptedArchiveError(f"Corrupted or invalid tar archive '{archive_path}': {exc}") from exc
 
