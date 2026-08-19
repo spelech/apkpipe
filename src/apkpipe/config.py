@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     jdownloader_email: str = ""
     jdownloader_password: str = ""
     jdownloader_device_name: str = ""
+    jdownloader_watch_dir: str = ""
     scraper_url: str = "http://scraper:8080"
 
     # Integration settings
