@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+
+{% block title %}Watchlist - APKPipe{% endblock %}
+
+{% block content %}
+<div x-data="watchlistApp()" class="space-y-6">
+
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div>
+      <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-white flex items-center gap-3">
+        Monitored Applications
+        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20" x-text="items.length + ' Total'">
+          0 Total
+        </span>
+      </h1>
+      <p class="text-sm text-slate-400 mt-1">Configure automated matching rules, releaser filters, and minimum version constraints.</p>
+    </div>
+
+    <button 
+      @click="openAddModal()" 
+      class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/25 transition">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+      Add Application
+    </button>
+  </div>
+
+  <!-- Search & Filters -->
+  <div class="glass-panel p-4 rounded-2xl border border-slate-800 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+    <div class="relative flex-1">
+      <svg class="w-5 h-5 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+      <input 
+        type="text" 
+        x-model="searchQuery" 
+        placeholder="Filter by app name or package (e.g. Spotify or com.spotify.music)..." 
+        class="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500">
+    </div>
+
+    <div class="flex items-center gap-3">
+      <select 
+        x-model="categoryFilter" 
+        class="px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
+        <option value="">All Categories</option>
+        <template x-for="cat in categories" :key="cat">
+          <option :value="cat" x-text="cat"></option>
+        </template>
+      </select>
+
+      <select 
+        x-model="statusFilter" 
+        class="px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
+        <option value="">All Statuses</option>
+        <option value="enabled">Enabled Only</option>
+        <option value="disabled">Disabled Only</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Watchlist Table / Grid -->
+  <div class="glass-panel rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-sm text-slate-300">
+        <thead class="bg-slate-900/80 text-xs uppercase font-semibold text-slate-400 border-b border-slate-800">
+          <tr>
+            <th class="px-6 py-4">Application</th>
+            <th class="px-6 py-4">Package Name</th>
+            <th class="px-6 py-4">Min Version</th>
+            <th class="px-6 py-4">Releasers</th>
+            <th class="px-6 py-4 text-center">Status</th>
+            <th class="px-6 py-4 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-800/80">
+          <template x-if="loading">
+            <tr>
+              <td colspan="6" class="px-6 py-12 text-center text-slate-500">
+                <div class="inline-flex items-center gap-2">
+                  <svg class="animate-spin w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                  Loading watchlist apps...
+                </div>
+              </td>
+            </tr>
+          </template>
+
+          <template x-if="!loading && filteredItems.length === 0">
+            <tr>
+              <td colspan="6" class="px-6 py-12 text-center text-slate-500">
+                No matching applications found in watchlist.
+              </td>
+            </tr>
+          </template>
+
+          <template x-for="item in filteredItems" :key="item.id">
+            <tr class="hover:bg-slate-900/40 transition">
+              <td class="px-6 py-4">
+                <div class="font-bold text-white text-base" x-text="item.app_name"></div>
+                <div class="flex items-center gap-2 mt-1">
+                  <span class="px-2 py-0.5 rounded text-[11px] bg-slate-800 text-slate-400 border border-slate-700" x-text="item.category"></span>
+                  <template x-if="item.title_regex">
+                    <span class="text-xs text-indigo-400 font-mono" x-text="'Regex: ' + item.title_regex"></span>
+                  </template>
+                </div>
+              </td>
+
+              <td class="px-6 py-4 font-mono text-xs text-slate-400">
+                <span x-text="item.package_name || '-'"></span>
+              </td>
+
+              <td class="px-6 py-4">
+                <span class="px-2.5 py-1 rounded-lg text-xs font-mono font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20" x-text="'≥ ' + (item.min_version || '0.0.0')"></span>
+              </td>
+
+              <td class="px-6 py-4">
+                <div class="flex flex-wrap gap-1.5 max-w-xs">
+                  <template x-if="(!item.releaser_whitelist || item.releaser_whitelist.length === 0) && (!item.releaser_blacklist || item.releaser_blacklist.length === 0)">
+                    <span class="text-xs text-slate-500">Any releaser</span>
+                  </template>
+
+                  <template x-for="rel in (item.releaser_whitelist || [])" :key="rel">
+                    <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-300 border border-emerald-500/20" x-text="'+ ' + rel"></span>
+                  </template>
+
+                  <template x-for="rel in (item.releaser_blacklist || [])" :key="rel">
+                    <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-500/10 text-rose-300 border border-rose-500/20" x-text="'- ' + rel"></span>
+                  </template>
+                </div>
+              </td>
+
+              <td class="px-6 py-4 text-center">
+                <button 
+                  @click="toggleEnabled(item)" 
+                  :class="item.enabled ? 'bg-emerald-600' : 'bg-slate-700'"
+                  class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none">
+                  <span 
+                    :class="item.enabled ? 'translate-x-5' : 'translate-x-0'"
+                    class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out"></span>
+                </button>
+              </td>
+
+              <td class="px-6 py-4 text-right space-x-2">
+                <button 
+                  @click="openEditModal(item)" 
+                  class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
+                  Edit
+                </button>
+                <button 
+                  @click="deleteItem(item)" 
+                  class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20 transition">
+                  Delete
+                </button>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Add/Edit Watchlist Modal -->
+  <div 
+    x-show="modalOpen" 
+    x-cloak
+    class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop"
+    x-transition:enter="transition ease-out duration-200"
+    x-transition:enter-start="opacity-0"
+    x-transition:enter-end="opacity-100"
+    x-transition:leave="transition ease-in duration-150"
+    x-transition:leave-start="opacity-100"
+    x-transition:leave-end="opacity-0">
+    
+    <div 
+      @click.away="closeModal()" 
+      class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5"
+      x-transition:enter="transition ease-out duration-200"
+      x-transition:enter-start="opacity-0 scale-95"
+      x-transition:enter-end="opacity-100 scale-100">
+      
+      <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+        <h3 class="text-lg font-bold text-white" x-text="modalMode === 'add' ? 'Add Monitored Application' : 'Edit Application Rules'"></h3>
+        <button @click="closeModal()" class="text-slate-400 hover:text-white">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <form @submit.prevent="saveItem()" class="space-y-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">App Name *</label>
+            <input 
+              type="text" 
+              x-model="form.app_name" 
+              required 
+              placeholder="e.g. Spotify" 
+              class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Package Name</label>
+            <input 
+              type="text" 
+              x-model="form.package_name" 
+              placeholder="com.spotify.music" 
+              class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Category</label>
+            <input 
+              type="text" 
+              x-model="form.category" 
+              placeholder="Apps / Games / Media" 
+              class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Min Version</label>
+            <input 
+              type="text" 
+              x-model="form.min_version" 
+              placeholder="0.0.0" 
+              class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Title Regex Pattern (Optional)</label>
+          <input 
+            type="text" 
+            x-model="form.title_regex" 
+            placeholder="^Spotify.*\[Premium\].*" 
+            class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm font-mono text-slate-100 focus:outline-none focus:border-indigo-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Releaser Whitelist (Comma-separated)</label>
+          <input 
+            type="text" 
+            x-model="form.releaser_whitelist_raw" 
+            placeholder="Balatan, derrin, mods_king" 
+            class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Releaser Blacklist (Comma-separated)</label>
+          <input 
+            type="text" 
+            x-model="form.releaser_blacklist_raw" 
+            placeholder="spammer, untrusted_uploader" 
+            class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+        </div>
+
+        <div class="flex items-center gap-2 pt-2">
+          <input 
+            type="checkbox" 
+            id="enabled_checkbox" 
+            x-model="form.enabled" 
+            class="rounded bg-slate-950 border-slate-700 text-indigo-600 focus:ring-indigo-500 h-4 w-4">
+          <label for="enabled_checkbox" class="text-sm font-medium text-slate-300">Enable monitoring immediately</label>
+        </div>
+
+        <div class="pt-4 flex items-center justify-end gap-3 border-t border-slate-800">
+          <button 
+            type="button" 
+            @click="closeModal()" 
+            class="px-4 py-2 rounded-xl text-sm font-medium text-slate-400 hover:text-slate-200">
+            Cancel
+          </button>
+          <button 
+            type="submit" 
+            :disabled="saving"
+            class="px-5 py-2 rounded-xl text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg transition flex items-center gap-2 disabled:opacity-50">
+            <span x-text="modalMode === 'add' ? 'Save Application' : 'Update Application'"></span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
