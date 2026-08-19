@@ -11,7 +11,7 @@ from apkpipe.resolvers.base import (
 )
 from apkpipe.resolvers.direct import DirectResolver
 from apkpipe.resolvers.jdownloader import JDownloaderResolver
-from apkpipe.resolvers.manager import ResolutionManager
+from apkpipe.resolvers.manager import ResolutionManager, ResolverManager
 from apkpipe.resolvers.real_debrid import RealDebridResolver
 
 __all__ = [
@@ -22,6 +22,7 @@ __all__ = [
     "LinkDeadError",
     "RateLimitError",
     "ResolutionManager",
+    "ResolverManager",
     "ResolvedDownload",
     "ResolverError",
     "RealDebridResolver",

@@ -178,3 +178,6 @@ class ResolutionManager:
     # Alias for resolve
     resolve_links = resolve
 
+
+ResolverManager = ResolutionManager
+
