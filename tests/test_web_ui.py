@@ -18,6 +18,39 @@ async def setup_test_database():
     await close_db()
 
 
+@pytest.fixture(autouse=True)
+def ensure_frontend_dist():
+    """Ensure frontend/dist and assets exist during tests so SPA routes are active."""
+    frontend_dist = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+    frontend_dist.mkdir(parents=True, exist_ok=True)
+    index_html = frontend_dist / "index.html"
+    created_index = False
+    if not index_html.exists():
+        index_html.write_text("<!doctype html><html><head><title>APKPipe</title></head><body>APKPipe App</body></html>", encoding="utf-8")
+        created_index = True
+
+    assets_dir = frontend_dist / "assets"
+    assets_dir.mkdir(parents=True, exist_ok=True)
+    sample_asset = assets_dir / "index-sample.js"
+    created_asset = False
+    if not sample_asset.exists():
+        sample_asset.write_text("console.log('apkpipe');", encoding="utf-8")
+        created_asset = True
+
+    yield frontend_dist
+
+    if created_index and index_html.exists():
+        try:
+            index_html.unlink()
+        except Exception:
+            pass
+    if created_asset and sample_asset.exists():
+        try:
+            sample_asset.unlink()
+        except Exception:
+            pass
+
+
 @pytest.fixture
 def app():
     """Create test application instance."""
