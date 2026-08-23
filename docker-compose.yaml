@@ -40,12 +40,6 @@ services:
       wud.tag.include: "^latest$$"
       wud.link.template: "https://github.com/spelech/apkpipe/releases"
 
-      # Caddy Reverse Proxy (Cloudflare SSL + TinyAuth Protection)
-      caddy: "apk.wileyriley.com"
-      caddy.import_1: "cloudflare"
-      caddy.import_2: "tinyauth"
-      caddy.reverse_proxy: "{{upstreams 8000}}"
-
       # TinyAuth Access Control
       tinyauth.apps.apkpipe.config.domain: "apk.wileyriley.com"
       tinyauth.apps.apkpipe.oauth.groups: "media_admin,full_admin"
