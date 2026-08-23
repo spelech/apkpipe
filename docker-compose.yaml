@@ -1,11 +1,10 @@
 services:
   apkpipe:
     image: ghcr.io/spelech/apkpipe:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
     container_name: apkpipe
     restart: unless-stopped
+    env_file:
+      - .env
     ports:
       - "8429:8000"
     environment:
@@ -17,29 +16,52 @@ services:
       - APKPIPE_DOWNLOAD_DIR=/downloads
       - APKPIPE_STAGING_DIR=/data/staging
       - APKPIPE_POLL_INTERVAL_SECONDS=900
-      # Tier 1 Link Resolver: Real-Debrid
       - APKPIPE_REAL_DEBRID_API_TOKEN=${APKPIPE_REAL_DEBRID_API_TOKEN:-}
-      # Tier 2 Link Resolver: JDownloader 2 (Optional)
+      - APKPIPE_ALLDEBRID_API_KEY=${APKPIPE_ALLDEBRID_API_KEY:-}
+      - APKPIPE_ALLDEBRID_AGENT=${APKPIPE_ALLDEBRID_AGENT:-apkpipe}
       - APKPIPE_JDOWNLOADER_EMAIL=${APKPIPE_JDOWNLOADER_EMAIL:-}
       - APKPIPE_JDOWNLOADER_PASSWORD=${APKPIPE_JDOWNLOADER_PASSWORD:-}
-      - APKPIPE_JDOWNLOADER_DEVICE_NAME=${APKPIPE_JDOWNLOADER_DEVICE_NAME:-}
+      - APKPIPE_JDOWNLOADER_DEVICE_NAME=${APKPIPE_JDOWNLOADER_DEVICE_NAME:-APKPipe-JD2}
       - APKPIPE_JDOWNLOADER_WATCH_DIR=/data/jd_watch
-      # Tier 3 Link Resolver: Playwright Scraper (Optional)
-      - APKPIPE_SCRAPER_URL=http://scraper:8080
-      # Homelab Ingestion & Notifications
+      - APKPIPE_SCRAPER_URL=${APKPIPE_SCRAPER_URL:-http://scraper:8080}
       - APKPIPE_NEXTCLOUD_URL=${APKPIPE_NEXTCLOUD_URL:-http://nextcloud:80}
       - APKPIPE_NEXTCLOUD_TOKEN=${APKPIPE_NEXTCLOUD_TOKEN:-}
-      - APKPIPE_NEXTCLOUD_OCC_COMMAND=${APKPIPE_NEXTCLOUD_OCC_COMMAND:-docker exec nextcloud-aio-nextcloud sudo -u www-data php /var/www/html/occ files:scan --path="{path}"}
+      - APKPIPE_NEXTCLOUD_OCC_COMMAND=${APKPIPE_NEXTCLOUD_OCC_COMMAND:-docker exec nextcloud sudo -u abc php /config/www/nextcloud/occ files:scan --path="{path}"}
       - APKPIPE_APPRISE_URL=${APKPIPE_APPRISE_URL:-http://apprise:8000/notify/apprise}
       - APKPIPE_NTFY_TOPIC=${APKPIPE_NTFY_TOPIC:-apkpipe-alerts}
     volumes:
       - ./data:/data
-      - /drives/storage/Nextcloud/APKs:/downloads
+      - /drives/nextcloud/nextcloud_data/steve/files/APKs:/downloads
       - /var/run/docker.sock:/var/run/docker.sock:ro
     labels:
-      - "caddy=apk.wileyriley.com"
-      - "caddy.reverse_proxy={{upstreams 8000}}"
-      - "caddy.import=tinyauth"
+      # What's Up Docker (WUD) Auto-Update & Monitoring
+      wud.watch: "true"
+      wud.display.name: "APKPipe"
+      wud.tag.include: "^latest$$"
+      wud.link.template: "https://github.com/spelech/apkpipe/releases"
+
+      # Caddy Reverse Proxy (Cloudflare SSL + TinyAuth Protection)
+      caddy: "apk.wileyriley.com"
+      caddy.import_1: "cloudflare"
+      caddy.import_2: "tinyauth"
+      caddy.reverse_proxy: "{{upstreams 8000}}"
+
+      # TinyAuth Access Control
+      tinyauth.apps.apkpipe.config.domain: "apk.wileyriley.com"
+      tinyauth.apps.apkpipe.oauth.groups: "media_admin,full_admin"
+      tinyauth.apps.apkpipe.path.allow: "^/(api|health|mcp)"
+
+      # Homelab Dashboard Portal
+      portal.apkpipe.name: "APKPipe"
+      portal.apkpipe.description: "Automated APK & RSS media pipeline with Real-Debrid, AllDebrid, and Nextcloud."
+      portal.apkpipe.category: "Media Management"
+      portal.apkpipe.icon: "fa-brands fa-android"
+      portal.apkpipe.color: "#10b981"
+
+      # Uptime Kuma Monitoring (AutoKuma)
+      kuma.apkpipe.http.name: "APKPipe"
+      kuma.apkpipe.http.url: "https://apk.wileyriley.com"
+      kuma.apkpipe.http.group: "- Media"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -48,30 +70,13 @@ services:
       start_period: 15s
     networks:
       - default
-      - caddy
-
-  # Optional companion service: Headless JDownloader 2 (Tier 2 Fallback)
-  # jdownloader:
-  #   image: jlesage/jdownloader-2:latest
-  #   container_name: apkpipe-jdownloader
-  #   restart: unless-stopped
-  #   environment:
-  #     - USER_ID=1000
-  #     - GROUP_ID=1000
-  #     - MYJDOWNLOADER_EMAIL=${APKPIPE_JDOWNLOADER_EMAIL}
-  #     - MYJDOWNLOADER_PASSWORD=${APKPIPE_JDOWNLOADER_PASSWORD}
-  #     - MYJDOWNLOADER_DEVICENAME=${APKPIPE_JDOWNLOADER_DEVICE_NAME:-APKPipe-JD2}
-  #   volumes:
-  #     - ./data/jd_config:/config:rw
-  #     - /drives/storage/Nextcloud/APKs:/output:rw
-  #     - ./data/jd_watch:/watch:rw
-  #   ports:
-  #     - "5800:5800"
-  #   networks:
-  #     - default
+      - net_webservices
+      - net_media
 
 networks:
   default:
     name: apkpipe_net
-  caddy:
+  net_webservices:
+    external: true
+  net_media:
     external: true
