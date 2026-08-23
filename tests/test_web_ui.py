@@ -1,4 +1,4 @@
-"""Unit and integration tests for Web UI templates and static file routing."""
+"""Unit and integration tests for Web UI routing, React SPA serving, and legacy fallback."""
 
 from pathlib import Path
 from unittest.mock import patch
@@ -18,6 +18,39 @@ async def setup_test_database():
     await close_db()
 
 
+@pytest.fixture(autouse=True)
+def ensure_frontend_dist():
+    """Ensure frontend/dist and assets exist during tests so SPA routes are active."""
+    frontend_dist = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+    frontend_dist.mkdir(parents=True, exist_ok=True)
+    index_html = frontend_dist / "index.html"
+    created_index = False
+    if not index_html.exists():
+        index_html.write_text("<!doctype html><html><head><title>APKPipe</title></head><body>APKPipe App</body></html>", encoding="utf-8")
+        created_index = True
+
+    assets_dir = frontend_dist / "assets"
+    assets_dir.mkdir(parents=True, exist_ok=True)
+    sample_asset = assets_dir / "index-sample.js"
+    created_asset = False
+    if not sample_asset.exists():
+        sample_asset.write_text("console.log('apkpipe');", encoding="utf-8")
+        created_asset = True
+
+    yield frontend_dist
+
+    if created_index and index_html.exists():
+        try:
+            index_html.unlink()
+        except Exception:
+            pass
+    if created_asset and sample_asset.exists():
+        try:
+            sample_asset.unlink()
+        except Exception:
+            pass
+
+
 @pytest.fixture
 def app():
     """Create test application instance."""
@@ -33,128 +66,167 @@ async def client(app):
 
 
 @pytest.mark.asyncio
-async def test_dashboard_index_route(client):
-    """Verify GET / renders index.html dashboard with overview components."""
-    response = await client.get("/")
-    assert response.status_code == 200
-    assert "text/html" in response.headers.get("content-type", "")
-    html = response.text
-    assert "APKPipe" in html
-    assert "Dashboard" in html
-    assert "Active Watchlist" in html
-    assert "Active Feeds" in html
-    assert "Manual Download" in html
-    assert "Recent Ingests" in html or "Recent Activity" in html
-    assert "Manual Download Trigger" in html
+async def test_spa_root_page(client):
+    """Verify GET / returns React SPA index.html."""
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers.get("content-type", "")
+    assert "APKPipe" in resp.text
 
 
 @pytest.mark.asyncio
-async def test_watchlist_page_route(client):
-    """Verify GET /watchlist renders watchlist.html management view."""
-    response = await client.get("/watchlist")
-    assert response.status_code == 200
-    assert "text/html" in response.headers.get("content-type", "")
-    html = response.text
-    assert "APKPipe" in html
-    assert "Watchlist" in html
-    assert "Add Application" in html
-    assert "Package Name" in html
-    assert "Min Version" in html
-    assert "Releaser Whitelist" in html
-    assert "Releaser Blacklist" in html
+async def test_spa_watchlist_page(client):
+    """Verify GET /watchlist fallback routes to React SPA index.html."""
+    resp = await client.get("/watchlist")
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers.get("content-type", "")
+    assert "APKPipe" in resp.text
 
 
 @pytest.mark.asyncio
-async def test_feeds_page_route(client):
-    """Verify GET /feeds renders feeds.html RSS feed management view."""
-    response = await client.get("/feeds")
-    assert response.status_code == 200
-    assert "text/html" in response.headers.get("content-type", "")
-    html = response.text
-    assert "APKPipe" in html
-    assert "Feeds" in html
-    assert "Add Feed" in html
-    assert "Poll All Feeds Now" in html
-    assert "mobilism_rss" in html
+async def test_spa_feeds_page(client):
+    """Verify GET /feeds fallback routes to React SPA index.html."""
+    resp = await client.get("/feeds")
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers.get("content-type", "")
+    assert "APKPipe" in resp.text
 
 
 @pytest.mark.asyncio
-async def test_history_page_route(client):
-    """Verify GET /history renders history.html queue and audit view."""
-    response = await client.get("/history")
-    assert response.status_code == 200
-    assert "text/html" in response.headers.get("content-type", "")
-    html = response.text
-    assert "APKPipe" in html
-    assert "Download Queue & Audit History" in html
-    assert "Active Queue" in html
-    assert "Completed History" in html
-    assert "Live Poll" in html
+async def test_spa_history_page(client):
+    """Verify GET /history fallback routes to React SPA index.html."""
+    resp = await client.get("/history")
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers.get("content-type", "")
+    assert "APKPipe" in resp.text
 
 
 @pytest.mark.asyncio
-async def test_settings_page_route(client):
-    """Verify GET /settings renders settings.html configuration editor."""
-    response = await client.get("/settings")
-    assert response.status_code == 200
-    assert "text/html" in response.headers.get("content-type", "")
-    html = response.text
-    assert "APKPipe" in html
-    assert "Settings" in html
-    assert "Real-Debrid Tier 1 Resolver" in html
-    assert "JDownloader Tier 2 Fallback" in html
-    assert "Nextcloud" in html
-    assert "Notifications" in html
+async def test_spa_settings_page(client):
+    """Verify GET /settings fallback routes to React SPA index.html."""
+    resp = await client.get("/settings")
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers.get("content-type", "")
+    assert "APKPipe" in resp.text
 
 
 @pytest.mark.asyncio
-async def test_static_css_serving(client):
-    """Verify GET /static/styles.css serves the stylesheet."""
-    response = await client.get("/static/styles.css")
-    assert response.status_code == 200
-    assert "css" in response.headers.get("content-type", "")
-    css = response.text
-    assert len(css) > 0
-    assert "--bg-main" in css or ".badge" in css or ".glass-panel" in css
+async def test_spa_arbitrary_client_route(client):
+    """Verify arbitrary client-side navigation paths fallback to React SPA index.html."""
+    for path in ["/downloads/123", "/watchlist/new", "/custom/nested/path"]:
+        resp = await client.get(path)
+        assert resp.status_code == 200
+        assert "text/html" in resp.headers.get("content-type", "")
+        assert "APKPipe" in resp.text
 
 
 @pytest.mark.asyncio
-async def test_static_js_serving(client):
-    """Verify GET /static/app.js serves Alpine.js application logic."""
-    response = await client.get("/static/app.js")
-    assert response.status_code == 200
-    assert "javascript" in response.headers.get("content-type", "") or "text/plain" in response.headers.get("content-type", "")
-    js = response.text
-    assert "dashboardApp" in js
-    assert "watchlistApp" in js
-    assert "feedsApp" in js
-    assert "historyApp" in js
-    assert "settingsApp" in js
-    assert "formatBytes" in js
-    assert "showToast" in js
+async def test_spa_static_assets_serving(client):
+    """Verify Vite compiled static assets under /assets are served correctly."""
+    frontend_dist = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+    assets_dir = frontend_dist / "assets"
+    if assets_dir.exists():
+        asset_files = list(assets_dir.glob("*.js")) + list(assets_dir.glob("*.css"))
+        assert len(asset_files) > 0
+        asset_filename = asset_files[0].name
+        resp = await client.get(f"/assets/{asset_filename}")
+        assert resp.status_code == 200
+        assert len(resp.text) > 0
 
 
 @pytest.mark.asyncio
-async def test_static_file_not_found(client):
-    """Verify non-existent static file returns 404."""
-    response = await client.get("/static/non_existent_file_123.xyz")
-    assert response.status_code == 404
+async def test_spa_direct_file_serving(client):
+    """Verify static files in dist root (like index.html) are served directly."""
+    resp = await client.get("/index.html")
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers.get("content-type", "")
+    assert "APKPipe" in resp.text
 
 
 @pytest.mark.asyncio
-async def test_navigation_active_states(client):
-    """Verify active navigation links are marked correctly across pages."""
-    pages = ["/", "/watchlist", "/feeds", "/history", "/settings"]
-    for path in pages:
-        res = await client.get(path)
-        assert res.status_code == 200
-        assert "APKPipe" in res.text
-        assert "bg-indigo-600/20" in res.text or "border-indigo-500" in res.text
+async def test_spa_reserved_api_routes_404(client):
+    """Verify reserved API/docs/health prefixes return 404 rather than SPA index.html."""
+    for path in ["/api/nonexistent", "/health/sub", "/mcp/nonexistent", "/docs/extra", "/openapi.json/sub"]:
+        resp = await client.get(path)
+        assert resp.status_code == 404
+        assert resp.text == "Not found" or "detail" in resp.text
 
 
 @pytest.mark.asyncio
-async def test_app_creation_without_static_dir():
-    """Verify app creation handles missing static directory without crashing."""
-    with patch("pathlib.Path.exists", return_value=False):
-        app = create_app()
-        assert app is not None
+async def test_spa_assets_not_found(client):
+    """Verify non-existent asset under /assets returns 404."""
+    resp = await client.get("/assets/non_existent_file_999.js")
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_legacy_fallback_when_dist_missing():
+    """Verify fallback to Jinja2 templates when frontend/dist is missing."""
+    original_exists = Path.exists
+
+    def mock_exists(self):
+        # Simulate absence of frontend/dist directory
+        path_str = str(self)
+        if "frontend" in path_str or "/app/frontend/dist" in path_str:
+            return False
+        return original_exists(self)
+
+    with patch.object(Path, "exists", mock_exists):
+        legacy_app = create_app()
+        transport = ASGITransport(app=legacy_app)
+        async with AsyncClient(transport=transport, base_url="http://test") as c:
+            for path in ["/", "/watchlist", "/feeds", "/history", "/settings"]:
+                resp = await c.get(path)
+                assert resp.status_code == 200
+                assert "text/html" in resp.headers.get("content-type", "")
+                assert "APKPipe" in resp.text
+
+
+@pytest.mark.asyncio
+async def test_legacy_static_files():
+    """Verify legacy static file serving when fallback mode is active."""
+    original_exists = Path.exists
+
+    def mock_exists(self):
+        path_str = str(self)
+        if "frontend" in path_str or "/app/frontend/dist" in path_str:
+            return False
+        return original_exists(self)
+
+    with patch.object(Path, "exists", mock_exists):
+        legacy_app = create_app()
+        transport = ASGITransport(app=legacy_app)
+        async with AsyncClient(transport=transport, base_url="http://test") as c:
+            resp_css = await c.get("/static/styles.css")
+            assert resp_css.status_code == 200
+            assert "css" in resp_css.headers.get("content-type", "")
+
+            resp_js = await c.get("/static/app.js")
+            assert resp_js.status_code == 200
+
+            resp_nf = await c.get("/static/nonexistent_file_123.xyz")
+            assert resp_nf.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_app_creation_without_any_dirs():
+    """Verify app creation succeeds even if no frontend dist, static, or template dirs exist."""
+    with patch.object(Path, "exists", return_value=False):
+        empty_app = create_app()
+        assert empty_app is not None
+
+
+@pytest.mark.asyncio
+async def test_spa_path_traversal_prevention(client):
+    """Verify path traversal attempts are caught and return 404."""
+    for path in [
+        "/..%2f..%2fetc%2fpasswd",
+        "/%2e%2e/%2e%2e/pyproject.toml",
+        "/..%2fpyproject.toml",
+        "/%2e%2e%2fpyproject.toml",
+    ]:
+        resp = await client.get(path)
+        assert resp.status_code == 404
+        assert resp.text == "Not found"
+
+

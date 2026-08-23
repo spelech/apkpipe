@@ -8,10 +8,11 @@ from typing import AsyncGenerator
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from urllib.parse import unquote
 from apkpipe.api import (
     downloads_router,
     feeds_router,
@@ -81,16 +82,6 @@ def create_app() -> FastAPI:
     # Mount MCP Protocol Router (/mcp, /mcp/sse, /mcp/messages)
     app.include_router(mcp_router)
 
-    # Web UI Template & Static File Setup
-    web_dir = Path(__file__).resolve().parent / "web"
-    templates_dir = web_dir / "templates"
-    static_dir = web_dir / "static"
-
-    if static_dir.exists():
-        app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
-
-    templates = Jinja2Templates(directory=str(templates_dir))
-
     # Health Check Endpoint
     @app.get("/health", tags=["Health"])
     async def health_check() -> dict:
@@ -101,51 +92,96 @@ def create_app() -> FastAPI:
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
-    # Web UI Dashboard and Page Routes
-    @app.get("/", response_class=HTMLResponse, tags=["Web UI"])
-    async def dashboard_page(request: Request) -> HTMLResponse:
-        """Web UI Dashboard overview page."""
-        return templates.TemplateResponse(
-            request=request,
-            name="index.html",
-            context={"active_page": "dashboard", "app_name": settings.app_name, "version": APP_VERSION},
-        )
+    # Frontend SPA or Legacy Web UI Routing
+    frontend_dist = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
+    if not frontend_dist.exists():
+        frontend_dist = Path("/app/frontend/dist")
 
-    @app.get("/watchlist", response_class=HTMLResponse, tags=["Web UI"])
-    async def watchlist_page(request: Request) -> HTMLResponse:
-        """Web UI Watchlist management page."""
-        return templates.TemplateResponse(
-            request=request,
-            name="watchlist.html",
-            context={"active_page": "watchlist", "app_name": settings.app_name, "version": APP_VERSION},
-        )
+    if frontend_dist.exists():
+        assets_dir = frontend_dist / "assets"
+        if assets_dir.exists():
+            app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
 
-    @app.get("/feeds", response_class=HTMLResponse, tags=["Web UI"])
-    async def feeds_page(request: Request) -> HTMLResponse:
-        """Web UI Feed sources management page."""
-        return templates.TemplateResponse(
-            request=request,
-            name="feeds.html",
-            context={"active_page": "feeds", "app_name": settings.app_name, "version": APP_VERSION},
-        )
+        @app.get("/{full_path:path}", tags=["Web UI"])
+        async def serve_spa(full_path: str):
+            """Serve compiled React SPA assets and HTML5 history fallback."""
+            # Don't intercept API, health, mcp, or docs routes
+            if full_path.startswith(("api/", "health", "mcp", "docs", "openapi.json", "redoc")) or full_path == "api":
+                return HTMLResponse(status_code=404, content="Not found")
 
-    @app.get("/history", response_class=HTMLResponse, tags=["Web UI"])
-    async def history_page(request: Request) -> HTMLResponse:
-        """Web UI Download queue and audit history page."""
-        return templates.TemplateResponse(
-            request=request,
-            name="history.html",
-            context={"active_page": "history", "app_name": settings.app_name, "version": APP_VERSION},
-        )
+            # Check for path traversal attempts
+            decoded_path = unquote(full_path)
+            if ".." in decoded_path or ".." in full_path:
+                return HTMLResponse(status_code=404, content="Not found")
 
-    @app.get("/settings", response_class=HTMLResponse, tags=["Web UI"])
-    async def settings_page(request: Request) -> HTMLResponse:
-        """Web UI Configuration settings page."""
-        return templates.TemplateResponse(
-            request=request,
-            name="settings.html",
-            context={"active_page": "settings", "app_name": settings.app_name, "version": APP_VERSION},
-        )
+            # Resolve file target and ensure it remains within frontend_dist directory
+            try:
+                resolved_dist = frontend_dist.resolve()
+                file_target = (frontend_dist / decoded_path).resolve()
+                file_target.relative_to(resolved_dist)
+            except (ValueError, RuntimeError):
+                return HTMLResponse(status_code=404, content="Not found")
+
+            if full_path and file_target.is_file():
+                return FileResponse(file_target)
+            return FileResponse(frontend_dist / "index.html")
+    else:
+        # Legacy Jinja2 Template & Static File Setup
+        web_dir = Path(__file__).resolve().parent / "web"
+        templates_dir = web_dir / "templates"
+        static_dir = web_dir / "static"
+
+        if static_dir.exists():
+            app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+        if templates_dir.exists():
+            templates = Jinja2Templates(directory=str(templates_dir))
+
+            # Web UI Dashboard and Page Routes
+            @app.get("/", response_class=HTMLResponse, tags=["Web UI"])
+            async def dashboard_page(request: Request) -> HTMLResponse:
+                """Web UI Dashboard overview page."""
+                return templates.TemplateResponse(
+                    request=request,
+                    name="index.html",
+                    context={"active_page": "dashboard", "app_name": settings.app_name, "version": APP_VERSION},
+                )
+
+            @app.get("/watchlist", response_class=HTMLResponse, tags=["Web UI"])
+            async def watchlist_page(request: Request) -> HTMLResponse:
+                """Web UI Watchlist management page."""
+                return templates.TemplateResponse(
+                    request=request,
+                    name="watchlist.html",
+                    context={"active_page": "watchlist", "app_name": settings.app_name, "version": APP_VERSION},
+                )
+
+            @app.get("/feeds", response_class=HTMLResponse, tags=["Web UI"])
+            async def feeds_page(request: Request) -> HTMLResponse:
+                """Web UI Feed sources management page."""
+                return templates.TemplateResponse(
+                    request=request,
+                    name="feeds.html",
+                    context={"active_page": "feeds", "app_name": settings.app_name, "version": APP_VERSION},
+                )
+
+            @app.get("/history", response_class=HTMLResponse, tags=["Web UI"])
+            async def history_page(request: Request) -> HTMLResponse:
+                """Web UI Download queue and audit history page."""
+                return templates.TemplateResponse(
+                    request=request,
+                    name="history.html",
+                    context={"active_page": "history", "app_name": settings.app_name, "version": APP_VERSION},
+                )
+
+            @app.get("/settings", response_class=HTMLResponse, tags=["Web UI"])
+            async def settings_page(request: Request) -> HTMLResponse:
+                """Web UI Configuration settings page."""
+                return templates.TemplateResponse(
+                    request=request,
+                    name="settings.html",
+                    context={"active_page": "settings", "app_name": settings.app_name, "version": APP_VERSION},
+                )
 
     return app
 

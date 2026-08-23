@@ -2,9 +2,22 @@
 # Multi-stage production Dockerfile for APKPipe
 
 # =========================================================================
-# Stage 1: Build Dependencies
+# Stage 1: Build React/TypeScript Frontend
 # =========================================================================
-FROM python:3.12-slim AS builder
+FROM node:20-slim AS frontend-builder
+
+WORKDIR /build/frontend
+
+COPY frontend/package*.json ./
+RUN npm ci
+
+COPY frontend/ ./
+RUN npm run build
+
+# =========================================================================
+# Stage 2: Build Dependencies
+# =========================================================================
+FROM python:3.12-slim AS python-builder
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -30,7 +43,7 @@ COPY src/ ./src/
 RUN pip install --no-cache-dir --no-deps .
 
 # =========================================================================
-# Stage 2: Runtime Container
+# Stage 3: Runtime Container
 # =========================================================================
 FROM python:3.12-slim AS runner
 
@@ -65,11 +78,12 @@ RUN groupadd -g 1000 apkpipe && \
     useradd -u 1000 -g apkpipe -d /data -s /bin/sh apkpipe
 
 # Copy Python virtual environment and installed app from builder
-COPY --from=builder /opt/venv /opt/venv
+COPY --from=python-builder /opt/venv /opt/venv
 
 # Set up working directory structure
 WORKDIR /app
 COPY --chown=apkpipe:apkpipe src/ /app/src/
+COPY --chown=apkpipe:apkpipe --from=frontend-builder /build/frontend/dist /app/frontend/dist
 COPY --chown=apkpipe:apkpipe pyproject.toml README.md /app/
 
 # Create application data, staging, and downloads directories with permissions
