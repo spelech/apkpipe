@@ -181,3 +181,19 @@ async def test_app_creation_without_any_dirs():
     with patch.object(Path, "exists", return_value=False):
         empty_app = create_app()
         assert empty_app is not None
+
+
+@pytest.mark.asyncio
+async def test_spa_path_traversal_prevention(client):
+    """Verify path traversal attempts are caught and return 404."""
+    for path in [
+        "/..%2f..%2fetc%2fpasswd",
+        "/%2e%2e/%2e%2e/pyproject.toml",
+        "/..%2fpyproject.toml",
+        "/%2e%2e%2fpyproject.toml",
+    ]:
+        resp = await client.get(path)
+        assert resp.status_code == 404
+        assert resp.text == "Not found"
+
+

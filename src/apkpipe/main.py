@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from urllib.parse import unquote
 from apkpipe.api import (
     downloads_router,
     feeds_router,
@@ -107,7 +108,20 @@ def create_app() -> FastAPI:
             # Don't intercept API, health, mcp, or docs routes
             if full_path.startswith(("api/", "health", "mcp", "docs", "openapi.json", "redoc")) or full_path == "api":
                 return HTMLResponse(status_code=404, content="Not found")
-            file_target = frontend_dist / full_path
+
+            # Check for path traversal attempts
+            decoded_path = unquote(full_path)
+            if ".." in decoded_path or ".." in full_path:
+                return HTMLResponse(status_code=404, content="Not found")
+
+            # Resolve file target and ensure it remains within frontend_dist directory
+            try:
+                resolved_dist = frontend_dist.resolve()
+                file_target = (frontend_dist / decoded_path).resolve()
+                file_target.relative_to(resolved_dist)
+            except (ValueError, RuntimeError):
+                return HTMLResponse(status_code=404, content="Not found")
+
             if full_path and file_target.is_file():
                 return FileResponse(file_target)
             return FileResponse(frontend_dist / "index.html")
