@@ -350,10 +350,14 @@ async def test_settings_get_and_post(client):
     assert "app_name" in settings_data
     assert "database_url" in settings_data
     assert "poll_interval_seconds" in settings_data
+    assert "alldebrid_api_key" in settings_data
+    assert "alldebrid_agent" in settings_data
 
     # 2. POST /api/settings
     update_payload = {
         "real_debrid_api_token": "secret_token_123",
+        "alldebrid_api_key": "alldebrid_api_key_789",
+        "alldebrid_agent": "apkpipe_custom",
         "nextcloud_url": "https://nextcloud.homelab.local",
         "poll_interval_seconds": 600,
         "ntfy_topic": "homelab-apks",
@@ -363,12 +367,27 @@ async def test_settings_get_and_post(client):
     updated_data = post_resp.json()
     assert updated_data["poll_interval_seconds"] == 600
     assert updated_data["nextcloud_url"] == "https://nextcloud.homelab.local"
+    assert updated_data["alldebrid_api_key"] == "alldebrid_api_key_789"
+    assert updated_data["alldebrid_agent"] == "apkpipe_custom"
 
     # Verify settings persisted in DB
     async for session in get_db():
         st = (await session.execute(select(AppSetting).where(AppSetting.key == "ntfy_topic"))).scalar_one_or_none()
         assert st is not None
         assert st.value == "homelab-apks"
+
+        st_ad = (await session.execute(select(AppSetting).where(AppSetting.key == "alldebrid_api_key"))).scalar_one_or_none()
+        assert st_ad is not None
+        assert st_ad.value == "alldebrid_api_key_789"
+
+    # 3. PUT /api/settings
+    put_payload = {
+        "alldebrid_api_key": "updated_ad_key_999",
+    }
+    put_resp = await client.put("/api/settings", json=put_payload)
+    assert put_resp.status_code == 200
+    put_data = put_resp.json()
+    assert put_data["alldebrid_api_key"] == "updated_ad_key_999"
 
 
 # =========================================================================

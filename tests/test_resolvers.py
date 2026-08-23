@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
+from apkpipe.resolvers.all_debrid import AllDebridResolver
 from apkpipe.resolvers.base import (
     AuthenticationError,
     BaseResolver,
@@ -728,6 +729,288 @@ async def test_resolution_manager_resolve_all():
 
 
 @pytest.mark.asyncio
+async def test_resolution_manager_init_default_and_ordering():
+    """Test ResolutionManager initializes with AllDebrid and orders correctly."""
+    manager = ResolutionManager()
+    assert isinstance(manager.rd_resolver, RealDebridResolver)
+    assert isinstance(manager.ad_resolver, AllDebridResolver)
+    assert isinstance(manager.jd_resolver, JDownloaderResolver)
+    assert isinstance(manager.direct_resolver, DirectResolver)
+
+    ordered = manager._get_ordered_resolvers()
+    assert ordered == [
+        manager.rd_resolver,
+        manager.ad_resolver,
+        manager.jd_resolver,
+        manager.direct_resolver,
+    ]
+
+    preferred_ad = manager._get_ordered_resolvers(preferred_tier="alldebrid")
+    assert preferred_ad == [
+        manager.ad_resolver,
+        manager.rd_resolver,
+        manager.jd_resolver,
+        manager.direct_resolver,
+    ]
+
+
+@pytest.mark.asyncio
+async def test_resolution_manager_rd_auth_error_fallthrough_to_alldebrid():
+    """Test Real-Debrid AuthenticationError seamlessly falls through to AllDebrid."""
+    rd_resolver = AsyncMock(spec=RealDebridResolver)
+    rd_resolver.tier_name = "real_debrid"
+    rd_resolver.can_resolve.return_value = True
+    rd_resolver.resolve.side_effect = AuthenticationError("RD token invalid/expired")
+
+    ad_resolver = AsyncMock(spec=AllDebridResolver)
+    ad_resolver.tier_name = "alldebrid"
+    ad_resolver.can_resolve.return_value = True
+    ad_resolver.resolve.return_value = ResolvedDownload(
+        download_url="https://download.alldebrid.com/d/123/app.apk",
+        filename="app.apk",
+        filesize=15000000,
+        hoster="rapidgator.net",
+        tier="alldebrid",
+        original_link="https://rapidgator.net/file/123",
+    )
+
+    jd_resolver = AsyncMock(spec=JDownloaderResolver)
+    jd_resolver.tier_name = "jdownloader"
+
+    direct_resolver = AsyncMock(spec=DirectResolver)
+    direct_resolver.tier_name = "scraper_direct"
+
+    manager = ResolutionManager(
+        rd_resolver=rd_resolver,
+        ad_resolver=ad_resolver,
+        jd_resolver=jd_resolver,
+        direct_resolver=direct_resolver,
+    )
+
+    links = ["https://rapidgator.net/file/123"]
+    resolved = await manager.resolve(links)
+
+    assert resolved is not None
+    assert resolved.tier == "alldebrid"
+    assert resolved.download_url == "https://download.alldebrid.com/d/123/app.apk"
+    rd_resolver.resolve.assert_awaited_once()
+    ad_resolver.resolve.assert_awaited_once()
+    jd_resolver.resolve.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_resolution_manager_rd_unsupported_hoster_fallthrough_to_alldebrid():
+    """Test Real-Debrid UnsupportedHosterError seamlessly falls through to AllDebrid."""
+    rd_resolver = AsyncMock(spec=RealDebridResolver)
+    rd_resolver.tier_name = "real_debrid"
+    rd_resolver.can_resolve.return_value = True
+    rd_resolver.resolve.side_effect = UnsupportedHosterError("Hoster not supported by Real-Debrid")
+
+    ad_resolver = AsyncMock(spec=AllDebridResolver)
+    ad_resolver.tier_name = "alldebrid"
+    ad_resolver.can_resolve.return_value = True
+    ad_resolver.resolve.return_value = ResolvedDownload(
+        download_url="https://download.alldebrid.com/d/456/app.apk",
+        filename="app.apk",
+        filesize=22000000,
+        hoster="dropgalaxy.in",
+        tier="alldebrid",
+        original_link="https://dropgalaxy.in/drive/456",
+    )
+
+    manager = ResolutionManager(
+        rd_resolver=rd_resolver,
+        ad_resolver=ad_resolver,
+        jd_resolver=None,
+        direct_resolver=None,
+    )
+
+    links = ["https://dropgalaxy.in/drive/456"]
+    resolved = await manager.resolve(links)
+
+    assert resolved is not None
+    assert resolved.tier == "alldebrid"
+    assert resolved.download_url == "https://download.alldebrid.com/d/456/app.apk"
+    rd_resolver.resolve.assert_awaited_once()
+    ad_resolver.resolve.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_resolution_manager_rd_link_dead_fallthrough_to_alldebrid():
+    """Test Real-Debrid LinkDeadError falls through to AllDebrid."""
+    rd_resolver = AsyncMock(spec=RealDebridResolver)
+    rd_resolver.tier_name = "real_debrid"
+    rd_resolver.can_resolve.return_value = True
+    rd_resolver.resolve.side_effect = LinkDeadError("Link dead on RD")
+
+    ad_resolver = AsyncMock(spec=AllDebridResolver)
+    ad_resolver.tier_name = "alldebrid"
+    ad_resolver.can_resolve.return_value = True
+    ad_resolver.resolve.return_value = ResolvedDownload(
+        download_url="https://download.alldebrid.com/d/789/app.apk",
+        filename="app.apk",
+        filesize=18000000,
+        hoster="uploady.io",
+        tier="alldebrid",
+        original_link="https://uploady.io/file/789",
+    )
+
+    manager = ResolutionManager(
+        rd_resolver=rd_resolver,
+        ad_resolver=ad_resolver,
+    )
+
+    resolved = await manager.resolve(["https://uploady.io/file/789"])
+    assert resolved is not None
+    assert resolved.tier == "alldebrid"
+    assert resolved.download_url == "https://download.alldebrid.com/d/789/app.apk"
+    rd_resolver.resolve.assert_awaited_once()
+    ad_resolver.resolve.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_resolution_manager_alldebrid_auth_error_fallthrough_to_jd():
+    """Test AllDebrid AuthenticationError seamlessly falls through to JDownloader."""
+    rd_resolver = AsyncMock(spec=RealDebridResolver)
+    rd_resolver.tier_name = "real_debrid"
+    rd_resolver.can_resolve.return_value = False
+
+    ad_resolver = AsyncMock(spec=AllDebridResolver)
+    ad_resolver.tier_name = "alldebrid"
+    ad_resolver.can_resolve.return_value = True
+    ad_resolver.resolve.side_effect = AuthenticationError("AUTH_BAD_APIKEY: Invalid API key")
+
+    jd_resolver = AsyncMock(spec=JDownloaderResolver)
+    jd_resolver.tier_name = "jdownloader"
+    jd_resolver.can_resolve.return_value = True
+    jd_resolver.resolve.return_value = ResolvedDownload(
+        download_url="https://dropgalaxy.in/drive/999",
+        filename="app.apk",
+        filesize=0,
+        hoster="dropgalaxy.in",
+        tier="jdownloader",
+        original_link="https://dropgalaxy.in/drive/999",
+    )
+
+    manager = ResolutionManager(
+        rd_resolver=rd_resolver,
+        ad_resolver=ad_resolver,
+        jd_resolver=jd_resolver,
+    )
+
+    resolved = await manager.resolve(["https://dropgalaxy.in/drive/999"])
+    assert resolved is not None
+    assert resolved.tier == "jdownloader"
+    ad_resolver.resolve.assert_awaited_once()
+    jd_resolver.resolve.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_resolution_manager_alldebrid_fail_fallthrough_to_direct():
+    """Test AllDebrid failure falls through to DirectResolver when JD cannot resolve."""
+    rd_resolver = AsyncMock(spec=RealDebridResolver)
+    rd_resolver.tier_name = "real_debrid"
+    rd_resolver.can_resolve.return_value = False
+
+    ad_resolver = AsyncMock(spec=AllDebridResolver)
+    ad_resolver.tier_name = "alldebrid"
+    ad_resolver.can_resolve.return_value = True
+    ad_resolver.resolve.side_effect = UnsupportedHosterError("HOST_NOT_AVAILABLE")
+
+    jd_resolver = AsyncMock(spec=JDownloaderResolver)
+    jd_resolver.tier_name = "jdownloader"
+    jd_resolver.can_resolve.return_value = False
+
+    direct_resolver = AsyncMock(spec=DirectResolver)
+    direct_resolver.tier_name = "scraper_direct"
+    direct_resolver.can_resolve.return_value = True
+    direct_resolver.resolve.return_value = ResolvedDownload(
+        download_url="https://github.com/app/releases/download/v1.0/app.apk",
+        filename="app.apk",
+        filesize=5000000,
+        hoster="github.com",
+        tier="scraper_direct",
+        original_link="https://github.com/app/releases/download/v1.0/app.apk",
+    )
+
+    manager = ResolutionManager(
+        rd_resolver=rd_resolver,
+        ad_resolver=ad_resolver,
+        jd_resolver=jd_resolver,
+        direct_resolver=direct_resolver,
+    )
+
+    resolved = await manager.resolve(["https://github.com/app/releases/download/v1.0/app.apk"])
+    assert resolved is not None
+    assert resolved.tier == "scraper_direct"
+    ad_resolver.resolve.assert_awaited_once()
+    direct_resolver.resolve.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_resolution_manager_preferred_tier_alldebrid():
+    """Test preferred_tier='alldebrid' executes AllDebrid before Real-Debrid."""
+    rd_resolver = AsyncMock(spec=RealDebridResolver)
+    rd_resolver.tier_name = "real_debrid"
+    rd_resolver.can_resolve.return_value = True
+    rd_resolver.resolve.return_value = ResolvedDownload(
+        download_url="https://download.real-debrid.com/d/rd/app.apk",
+        tier="real_debrid",
+        original_link="https://rapidgator.net/file/123",
+    )
+
+    ad_resolver = AsyncMock(spec=AllDebridResolver)
+    ad_resolver.tier_name = "alldebrid"
+    ad_resolver.can_resolve.return_value = True
+    ad_resolver.resolve.return_value = ResolvedDownload(
+        download_url="https://download.alldebrid.com/d/ad/app.apk",
+        tier="alldebrid",
+        original_link="https://rapidgator.net/file/123",
+    )
+
+    manager = ResolutionManager(rd_resolver=rd_resolver, ad_resolver=ad_resolver)
+
+    resolved = await manager.resolve(
+        "https://rapidgator.net/file/123",
+        preferred_tier="alldebrid",
+    )
+
+    assert resolved is not None
+    assert resolved.tier == "alldebrid"
+    assert resolved.download_url == "https://download.alldebrid.com/d/ad/app.apk"
+    ad_resolver.resolve.assert_awaited_once()
+    rd_resolver.resolve.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_resolution_manager_resolve_all_with_alldebrid():
+    """Test resolve_all correctly resolves multiple links via AllDebrid."""
+    rd_resolver = AsyncMock(spec=RealDebridResolver)
+    rd_resolver.tier_name = "real_debrid"
+    rd_resolver.can_resolve.return_value = True
+    rd_resolver.resolve.side_effect = UnsupportedHosterError("RD hoster unavailable")
+
+    ad_resolver = AsyncMock(spec=AllDebridResolver)
+    ad_resolver.tier_name = "alldebrid"
+    ad_resolver.can_resolve.return_value = True
+    ad_resolver.resolve.side_effect = lambda link, **kw: ResolvedDownload(
+        download_url=f"https://alldebrid.com/dl/{link.split('/')[-1]}",
+        original_link=link,
+        tier="alldebrid",
+    )
+
+    manager = ResolutionManager(rd_resolver=rd_resolver, ad_resolver=ad_resolver)
+    links = ["https://rapidgator.net/file/101", "https://rapidgator.net/file/102"]
+    results = await manager.resolve_all(links)
+
+    assert len(results) == 2
+    assert results[0].tier == "alldebrid"
+    assert results[0].original_link == "https://rapidgator.net/file/101"
+    assert results[1].tier == "alldebrid"
+    assert results[1].original_link == "https://rapidgator.net/file/102"
+
+
+@pytest.mark.asyncio
 async def test_resolution_manager_all_fail_returns_none():
     """Test ResolutionManager returns None when all resolvers fail for all links."""
     rd_resolver = AsyncMock(spec=RealDebridResolver)
@@ -1020,5 +1303,66 @@ async def test_resolution_manager_resolve_links_alias():
     res = await manager.resolve_links("https://example.com/app.apk")
     assert res is not None
     assert res.tier == "scraper_direct"
+
+
+@pytest.mark.asyncio
+async def test_resolution_manager_rate_limit_fallthrough():
+    """Test RateLimitError on one tier logs and falls through to next tier."""
+    rd_resolver = AsyncMock(spec=RealDebridResolver)
+    rd_resolver.tier_name = "real_debrid"
+    rd_resolver.can_resolve.return_value = True
+    rd_resolver.resolve.side_effect = RateLimitError("RD 429 rate limit")
+
+    ad_resolver = AsyncMock(spec=AllDebridResolver)
+    ad_resolver.tier_name = "alldebrid"
+    ad_resolver.can_resolve.return_value = True
+    ad_resolver.resolve.return_value = ResolvedDownload(
+        download_url="https://download.alldebrid.com/d/limit_recovered/app.apk",
+        original_link="https://rapidgator.net/file/123",
+        tier="alldebrid",
+    )
+
+    manager = ResolutionManager(rd_resolver=rd_resolver, ad_resolver=ad_resolver)
+    resolved = await manager.resolve(["https://rapidgator.net/file/123"])
+
+    assert resolved is not None
+    assert resolved.tier == "alldebrid"
+    assert resolved.download_url == "https://download.alldebrid.com/d/limit_recovered/app.apk"
+    rd_resolver.resolve.assert_awaited_once()
+    ad_resolver.resolve.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_resolution_manager_resolve_all_single_string():
+    """Test resolve_all accepts a single string link parameter."""
+    direct_resolver = AsyncMock(spec=DirectResolver)
+    direct_resolver.tier_name = "scraper_direct"
+    direct_resolver.can_resolve.return_value = True
+    direct_resolver.resolve.return_value = ResolvedDownload(
+        download_url="https://example.com/app.apk",
+        original_link="https://example.com/app.apk",
+        tier="scraper_direct",
+    )
+
+    manager = ResolutionManager(
+        rd_resolver=None,
+        ad_resolver=None,
+        jd_resolver=None,
+        direct_resolver=direct_resolver,
+    )
+    results = await manager.resolve_all("https://example.com/app.apk")
+    assert len(results) == 1
+    assert results[0].download_url == "https://example.com/app.apk"
+
+
+def test_get_host_priority_edge_cases():
+    """Test _get_host_priority with invalid inputs and unknown hosts."""
+    from apkpipe.resolvers.manager import _get_host_priority
+
+    assert _get_host_priority("https://rapidgator.net/file/123") == 20
+    assert _get_host_priority("https://unknownhoster.com/file") == 100
+    assert _get_host_priority(None) == 100
+    assert _get_host_priority(12345) == 100
+
 
 

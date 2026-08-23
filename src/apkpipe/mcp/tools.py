@@ -31,6 +31,7 @@ from apkpipe.extractors.scraper_client import PlaywrightScraperClient
 from apkpipe.feeds.matcher import match_feed_item
 from apkpipe.feeds.parser import extract_title_metadata, parse_feed
 from apkpipe.integrations.nextcloud import NextcloudClient
+from apkpipe.resolvers.all_debrid import AllDebridResolver
 from apkpipe.resolvers.manager import ResolutionManager, ResolverManager
 from apkpipe.resolvers.real_debrid import RealDebridResolver
 
@@ -240,6 +241,11 @@ TOOL_DOWNLOAD_URL: Dict[str, Any] = {
                 "type": "boolean",
                 "description": "Whether to resolve and download immediately or just enqueue",
                 "default": True,
+            },
+            "preferred_tier": {
+                "type": "string",
+                "description": "Preferred resolver tier: 'real_debrid', 'alldebrid', 'jdownloader', 'direct'",
+                "enum": ["real_debrid", "alldebrid", "jdownloader", "direct"],
             },
         },
         "required": ["url"],
@@ -675,6 +681,13 @@ async def download_url_tool(
     category = arguments.get("category") or "Apps"
     trigger_ingest = bool(arguments.get("trigger_ingest", True))
     auto_resolve = bool(arguments.get("auto_resolve", True))
+    preferred_tier = arguments.get("preferred_tier")
+
+    if preferred_tier and preferred_tier not in ("real_debrid", "alldebrid", "jdownloader", "direct"):
+        return make_tool_result(
+            f"Invalid preferred_tier '{preferred_tier}'. Must be one of: real_debrid, alldebrid, jdownloader, direct",
+            is_error=True,
+        )
 
     if not app_name:
         meta = extract_title_metadata(url)
@@ -710,8 +723,20 @@ async def download_url_tool(
         staging_dir = _get_writable_dir(settings.staging_dir, "apkpipe_staging")
         download_dir = _get_writable_dir(settings.download_dir, "apkpipe_downloads")
 
-        rd_resolver = RealDebridResolver(api_token=settings.real_debrid_api_token) if settings.real_debrid_api_token else None
-        resolver_mgr = ResolutionManager(rd_resolver=rd_resolver)
+        rd_resolver = (
+            RealDebridResolver(api_token=settings.real_debrid_api_token)
+            if settings.real_debrid_api_token
+            else None
+        )
+        ad_resolver = (
+            AllDebridResolver(
+                api_key=settings.alldebrid_api_key,
+                agent=settings.alldebrid_agent,
+            )
+            if settings.alldebrid_api_key
+            else None
+        )
+        resolver_mgr = ResolutionManager(rd_resolver=rd_resolver, ad_resolver=ad_resolver)
         downloader = DownloadEngine(staging_dir=staging_dir)
         organizer = FileOrganizer(base_download_dir=download_dir)
 
@@ -720,7 +745,7 @@ async def download_url_tool(
             task.status = "resolving"
             await s.commit()
 
-            resolved = await resolver_mgr.resolve(url)
+            resolved = await resolver_mgr.resolve(url, preferred_tier=preferred_tier)
             task.resolved_url = resolved.download_url
             task.download_tier = resolved.tier
             task.status = "downloading"
@@ -888,10 +913,32 @@ async def get_system_status_tool(
     # Services info
     services_info = {
         "real_debrid_configured": bool(settings.real_debrid_api_token),
+        "alldebrid_configured": bool(settings.alldebrid_api_key),
         "jdownloader_configured": bool(settings.jdownloader_email),
         "nextcloud_configured": bool(settings.nextcloud_url),
         "apprise_configured": bool(settings.apprise_url),
         "ntfy_configured": bool(settings.ntfy_topic),
+    }
+
+    # Resolvers status
+    resolvers_info = {
+        "real_debrid": {
+            "configured": bool(settings.real_debrid_api_token),
+            "tier": "real_debrid",
+        },
+        "alldebrid": {
+            "configured": bool(settings.alldebrid_api_key),
+            "tier": "alldebrid",
+            "agent": settings.alldebrid_agent,
+        },
+        "jdownloader": {
+            "configured": bool(settings.jdownloader_email),
+            "tier": "jdownloader",
+        },
+        "direct": {
+            "configured": True,
+            "tier": "direct",
+        },
     }
 
     # Storage info
@@ -920,6 +967,7 @@ async def get_system_status_tool(
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "database": db_stats,
         "services": services_info,
+        "resolvers": resolvers_info,
         "storage": storage_info,
     }
 
@@ -942,6 +990,11 @@ TOOL_REGISTRY: Dict[
     "apkpipe__get_history": get_history_tool,
     "apkpipe__get_system_status": get_system_status_tool,
 }
+
+# Aliases
+trigger_manual_download_tool = download_url_tool
+trigger_manual_download = download_url_tool
+TOOL_TRIGGER_MANUAL_DOWNLOAD = TOOL_DOWNLOAD_URL
 
 
 async def execute_tool(

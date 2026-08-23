@@ -402,9 +402,9 @@ async def test_tool_download_url_and_history(tmp_path):
     mock_download = AsyncMock(return_value=target_file)
     mock_resolve = AsyncMock(
         return_value=MagicMock(
-            download_url="https://real-debrid.com/d/xyz",
+            download_url="https://alldebrid.com/d/xyz",
             filename="TestApp v1.0.0 [test].apk",
-            tier="real_debrid",
+            tier="alldebrid",
         )
     )
 
@@ -420,12 +420,14 @@ async def test_tool_download_url_and_history(tmp_path):
                 "releaser": "test",
                 "auto_resolve": True,
                 "trigger_ingest": False,
+                "preferred_tier": "alldebrid",
             },
         )
         assert dl_res.get("isError", False) is False
         dl_data = json.loads(dl_res["content"][0]["text"])
         assert dl_data["status"] == "completed"
         assert dl_data["app_name"] == "TestApp"
+        assert dl_data["download_tier"] == "alldebrid"
 
     # Query history
     hist_res = await execute_tool("apkpipe__get_history", {"limit": 10})
@@ -444,9 +446,13 @@ async def test_tool_get_system_status():
     assert data["status"] == "healthy"
     assert "database" in data
     assert "services" in data
+    assert "resolvers" in data
     assert "storage" in data
     assert "watchlist_count" in data["database"]
     assert "real_debrid_configured" in data["services"]
+    assert "alldebrid_configured" in data["services"]
+    assert "alldebrid" in data["resolvers"]
+    assert data["resolvers"]["alldebrid"]["tier"] == "alldebrid"
 
 
 @pytest.mark.asyncio
@@ -729,3 +735,15 @@ async def test_tool_edge_cases_and_error_handling(tmp_path):
     # Poll second time -> duplicate skipped (tasks_created=0)
     poll2 = await execute_tool("apkpipe__trigger_poll", {"feed_id": feed_id})
     assert json.loads(poll2["content"][0]["text"])["tasks_created"] == 0
+
+    # 9. download_url with invalid preferred_tier
+    err_tier = await execute_tool(
+        "apkpipe__download_url",
+        {
+            "url": "https://example.com/app.apk",
+            "preferred_tier": "invalid_tier_name",
+        },
+    )
+    assert err_tier["isError"] is True
+    assert "Invalid preferred_tier" in err_tier["content"][0]["text"]
+

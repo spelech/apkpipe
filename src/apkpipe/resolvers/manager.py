@@ -1,10 +1,12 @@
-"""Tiered resolution manager coordinating Real-Debrid, JDownloader 2, and Direct resolvers."""
+"""Tiered resolution manager coordinating Real-Debrid, AllDebrid, JDownloader 2, and Direct resolvers."""
 
 import logging
 from typing import Any, List, Optional, Sequence, Union
 import urllib.parse
 
+from apkpipe.resolvers.all_debrid import AllDebridResolver
 from apkpipe.resolvers.base import (
+    AuthenticationError,
     BaseResolver,
     LinkDeadError,
     RateLimitError,
@@ -69,11 +71,13 @@ class ResolutionManager:
     def __init__(
         self,
         rd_resolver: Optional[RealDebridResolver] = None,
+        ad_resolver: Optional[AllDebridResolver] = None,
         jd_resolver: Optional[JDownloaderResolver] = None,
         direct_resolver: Optional[DirectResolver] = None,
     ) -> None:
         """Initialize ResolutionManager with resolution tier instances."""
         self.rd_resolver = rd_resolver if rd_resolver is not None else RealDebridResolver()
+        self.ad_resolver = ad_resolver if ad_resolver is not None else AllDebridResolver()
         self.jd_resolver = jd_resolver if jd_resolver is not None else JDownloaderResolver()
         self.direct_resolver = direct_resolver if direct_resolver is not None else DirectResolver()
 
@@ -86,13 +90,20 @@ class ResolutionManager:
         resolvers: List[BaseResolver] = []
         if self.rd_resolver:
             resolvers.append(self.rd_resolver)
+        if self.ad_resolver:
+            resolvers.append(self.ad_resolver)
         if self.jd_resolver:
             resolvers.append(self.jd_resolver)
         if self.direct_resolver:
             resolvers.append(self.direct_resolver)
 
         if preferred_tier:
-            preferred = [r for r in resolvers if getattr(r, "tier_name", "") == preferred_tier or getattr(r, "name", "") == preferred_tier]
+            preferred = [
+                r
+                for r in resolvers
+                if getattr(r, "tier_name", "") == preferred_tier
+                or getattr(r, "name", "") == preferred_tier
+            ]
             others = [r for r in resolvers if r not in preferred]
             resolvers = preferred + others
 
@@ -140,7 +151,7 @@ class ResolutionManager:
                         )
                         return resolved
 
-                except (UnsupportedHosterError, LinkDeadError) as err:
+                except (AuthenticationError, UnsupportedHosterError, LinkDeadError) as err:
                     logger.warning("Resolver tier '%s' failed for %s: %s", tier_name, link, err)
                     continue
                 except RateLimitError as err:

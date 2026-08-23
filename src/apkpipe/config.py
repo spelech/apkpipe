@@ -1,6 +1,8 @@
 """Application configuration and environment settings using Pydantic Settings."""
 
 from functools import lru_cache
+from typing import Optional
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -18,6 +20,12 @@ class Settings(BaseSettings):
 
     # Downloader / Resolver settings
     real_debrid_api_token: str = ""
+    alldebrid_api_key: Optional[str] = Field(
+        default=None, validation_alias="APKPIPE_ALLDEBRID_API_KEY"
+    )
+    alldebrid_agent: str = Field(
+        default="apkpipe", validation_alias="APKPIPE_ALLDEBRID_AGENT"
+    )
     jdownloader_email: str = ""
     jdownloader_password: str = ""
     jdownloader_device_name: str = ""
@@ -37,6 +45,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=False,
+        populate_by_name=True,
     )
 
 

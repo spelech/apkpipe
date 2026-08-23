@@ -19,6 +19,8 @@ def test_default_settings():
     assert settings.host == "0.0.0.0"
     assert settings.port == 8000
     assert settings.real_debrid_api_token == ""
+    assert settings.alldebrid_api_key is None
+    assert settings.alldebrid_agent == "apkpipe"
     assert settings.jdownloader_email == ""
     assert settings.jdownloader_password == ""
     assert settings.jdownloader_device_name == ""
@@ -42,6 +44,8 @@ def test_env_var_override():
         "APKPIPE_HOST": "127.0.0.1",
         "APKPIPE_PORT": "8429",
         "APKPIPE_REAL_DEBRID_API_TOKEN": "rd_secret_token_123",
+        "APKPIPE_ALLDEBRID_API_KEY": "ad_secret_api_key_456",
+        "APKPIPE_ALLDEBRID_AGENT": "custom_alldebrid_agent",
         "APKPIPE_JDOWNLOADER_EMAIL": "jd@example.com",
         "APKPIPE_JDOWNLOADER_PASSWORD": "secret_password",
         "APKPIPE_JDOWNLOADER_DEVICE_NAME": "MyNAS",
@@ -63,6 +67,8 @@ def test_env_var_override():
         assert settings.host == "127.0.0.1"
         assert settings.port == 8429
         assert settings.real_debrid_api_token == "rd_secret_token_123"
+        assert settings.alldebrid_api_key == "ad_secret_api_key_456"
+        assert settings.alldebrid_agent == "custom_alldebrid_agent"
         assert settings.jdownloader_email == "jd@example.com"
         assert settings.jdownloader_password == "secret_password"
         assert settings.jdownloader_device_name == "MyNAS"
@@ -72,6 +78,17 @@ def test_env_var_override():
         assert settings.nextcloud_occ_command == "docker exec nc occ files:scan"
         assert settings.apprise_url == "http://apprise:8000/notify"
         assert settings.ntfy_topic == "homelab-alerts"
+
+
+def test_alldebrid_config_options():
+    """Verify AllDebrid config initialization with constructor and aliases."""
+    s1 = Settings(alldebrid_api_key="direct_key", alldebrid_agent="test_agent")
+    assert s1.alldebrid_api_key == "direct_key"
+    assert s1.alldebrid_agent == "test_agent"
+
+    s2 = Settings(alldebrid_api_key=None)
+    assert s2.alldebrid_api_key is None
+    assert s2.alldebrid_agent == "apkpipe"
 
 
 def test_get_settings_cached():

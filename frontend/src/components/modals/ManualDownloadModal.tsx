@@ -167,6 +167,7 @@ export const ManualDownloadModal: React.FC = () => {
             >
               <option value="">Auto-Detect (Best Tier)</option>
               <option value="real_debrid">Real-Debrid Only</option>
+              <option value="alldebrid">AllDebrid (Tier 1b)</option>
               <option value="jdownloader">JDownloader Only</option>
               <option value="direct">Direct HTTP Only</option>
             </select>

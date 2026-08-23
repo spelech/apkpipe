@@ -17,6 +17,34 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/settings", tags=["Settings"])
 
 
+class AppSettings(BaseModel):
+    """Schema representing application settings response."""
+
+    app_name: str = "APKPipe"
+    debug: bool = False
+    database_url: str = "sqlite+aiosqlite:///apkpipe.db"
+    download_dir: str = "/data/downloads"
+    staging_dir: str = "/data/staging"
+    poll_interval_seconds: int = 900
+    host: str = "0.0.0.0"
+    port: int = 8000
+    real_debrid_api_token: Optional[str] = ""
+    alldebrid_api_key: Optional[str] = None
+    alldebrid_agent: str = "apkpipe"
+    jdownloader_email: Optional[str] = ""
+    jdownloader_password: Optional[str] = ""
+    jdownloader_device_name: Optional[str] = ""
+    jdownloader_watch_dir: Optional[str] = ""
+    scraper_url: str = "http://scraper:8080"
+    nextcloud_url: Optional[str] = ""
+    nextcloud_token: Optional[str] = ""
+    nextcloud_occ_command: Optional[str] = ""
+    apprise_url: Optional[str] = ""
+    ntfy_topic: Optional[str] = ""
+
+    model_config = ConfigDict(extra="allow")
+
+
 class SettingsUpdateRequest(BaseModel):
     """Schema for updating application runtime settings."""
 
@@ -26,6 +54,8 @@ class SettingsUpdateRequest(BaseModel):
     staging_dir: Optional[str] = None
     poll_interval_seconds: Optional[int] = None
     real_debrid_api_token: Optional[str] = None
+    alldebrid_api_key: Optional[str] = None
+    alldebrid_agent: Optional[str] = None
     jdownloader_email: Optional[str] = None
     jdownloader_password: Optional[str] = None
     jdownloader_device_name: Optional[str] = None
@@ -38,6 +68,9 @@ class SettingsUpdateRequest(BaseModel):
     ntfy_topic: Optional[str] = None
 
     model_config = ConfigDict(extra="allow")
+
+
+SettingsUpdate = SettingsUpdateRequest
 
 
 async def _get_merged_settings(db: AsyncSession) -> Dict[str, Any]:
@@ -83,6 +116,7 @@ async def get_settings_endpoint(
 
 
 @router.post("")
+@router.put("")
 async def update_settings_endpoint(
     settings_in: SettingsUpdateRequest,
     db: AsyncSession = Depends(get_db),

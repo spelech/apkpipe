@@ -1,7 +1,7 @@
 import React from 'react';
 
 export type BadgeStatus = 'pending' | 'resolving' | 'downloading' | 'completed' | 'failed' | string;
-export type ResolverTier = 'real_debrid' | 'jdownloader' | 'direct' | string;
+export type ResolverTier = 'real_debrid' | 'alldebrid' | 'jdownloader' | 'direct' | string;
 export type BadgeVariant =
   | BadgeStatus
   | ResolverTier
@@ -31,6 +31,9 @@ const variantStyles: Record<string, string> = {
   // Resolver tiers
   real_debrid: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30',
   'tier-rd': 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30',
+  alldebrid: 'bg-purple-900/30 text-purple-400 border-purple-800/40',
+  'tier-ad': 'bg-purple-900/30 text-purple-400 border-purple-800/40',
+  'tier-alldebrid': 'bg-purple-900/30 text-purple-400 border-purple-800/40',
   jdownloader: 'bg-pink-500/15 text-pink-300 border-pink-500/30',
   'tier-jd': 'bg-pink-500/15 text-pink-300 border-pink-500/30',
   direct: 'bg-teal-500/15 text-teal-300 border-teal-500/30',
@@ -51,6 +54,9 @@ const defaultLabels: Record<string, string> = {
   completed: 'Completed',
   failed: 'Failed',
   real_debrid: 'Real-Debrid',
+  alldebrid: 'AllDebrid',
+  'tier-ad': 'AllDebrid',
+  'tier-alldebrid': 'AllDebrid',
   jdownloader: 'JDownloader',
   direct: 'Direct HTTP',
 };

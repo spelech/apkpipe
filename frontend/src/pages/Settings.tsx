@@ -10,6 +10,7 @@ import {
   Eye,
   EyeOff,
   CheckCircle2,
+  ExternalLink,
 } from 'lucide-react';
 import { useSettingsQuery, useUpdateSettingsMutation } from '../api';
 import { useToastStore } from '../stores';
@@ -23,6 +24,8 @@ const defaultSettings: AppSettings = {
   staging_dir: '/data/apkpipe/staging',
   poll_interval_seconds: 300,
   real_debrid_api_token: '',
+  alldebrid_api_key: '',
+  alldebrid_agent: 'apkpipe',
   jdownloader_email: '',
   jdownloader_password: '',
   jdownloader_device_name: '',
@@ -40,6 +43,7 @@ export const Settings: React.FC = () => {
 
   // Password / Secret visibility toggles
   const [showRdToken, setShowRdToken] = useState(false);
+  const [showAdApiKey, setShowAdApiKey] = useState(false);
   const [showJdPass, setShowJdPass] = useState(false);
   const [showNcToken, setShowNcToken] = useState(false);
 
@@ -80,6 +84,8 @@ export const Settings: React.FC = () => {
       staging_dir: form.staging_dir.trim(),
       poll_interval_seconds: Math.max(10, form.poll_interval_seconds || 300),
       real_debrid_api_token: form.real_debrid_api_token?.trim() || '',
+      alldebrid_api_key: form.alldebrid_api_key?.trim() || '',
+      alldebrid_agent: form.alldebrid_agent?.trim() || 'apkpipe',
       jdownloader_email: form.jdownloader_email?.trim() || '',
       jdownloader_password: form.jdownloader_password || '',
       jdownloader_device_name: form.jdownloader_device_name?.trim() || '',
@@ -287,7 +293,79 @@ export const Settings: React.FC = () => {
             </div>
           </div>
 
-          {/* Section 3: JDownloader Tier 2 Fallback */}
+          {/* Section 3: AllDebrid Tier 1b Resolver */}
+          <div className="glass-panel p-6 rounded-2xl border border-slate-800 space-y-4 shadow-xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h2 className="text-base font-bold text-white flex items-center gap-2.5">
+                <Zap className="w-5 h-5 text-purple-400" />
+                <span>AllDebrid Resolver (Tier 1b)</span>
+              </h2>
+              <a
+                href="https://alldebrid.com/apikeys/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1 transition"
+              >
+                <span>Get API Key</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+                AllDebrid API Key
+              </label>
+              <div className="relative">
+                <input
+                  type={showAdApiKey ? 'text' : 'password'}
+                  name="alldebrid_api_key"
+                  value={form.alldebrid_api_key || ''}
+                  onChange={handleChange}
+                  placeholder="Paste your AllDebrid API key here"
+                  className="w-full pl-3.5 pr-24 py-2.5 rounded-xl bg-slate-950 border border-slate-700/80 text-sm font-mono text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowAdApiKey(!showAdApiKey)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-purple-400 hover:text-purple-300 flex items-center gap-1 px-2 py-1 rounded bg-slate-900 border border-slate-700/60 transition"
+                >
+                  {showAdApiKey ? (
+                    <>
+                      <EyeOff className="w-3.5 h-3.5" />
+                      <span>Hide</span>
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Show</span>
+                    </>
+                  )}
+                </button>
+              </div>
+              <p className="text-xs text-slate-500 mt-1.5">
+                Tier 1b peer multi-hoster resolver. Works alongside Real-Debrid with peer fallthrough to maximize hoster coverage (1fichier, rapidgator, uptobox, mega, etc.).
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+                AllDebrid Client Agent Identifier
+              </label>
+              <input
+                type="text"
+                name="alldebrid_agent"
+                value={form.alldebrid_agent || ''}
+                onChange={handleChange}
+                placeholder="apkpipe"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700/80 text-sm font-mono text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition"
+              />
+              <p className="text-xs text-slate-500 mt-1.5">
+                Identifier passed to the AllDebrid API in the agent parameter (defaults to apkpipe).
+              </p>
+            </div>
+          </div>
+
+          {/* Section 4: JDownloader Tier 2 Fallback */}
           <div className="glass-panel p-6 rounded-2xl border border-slate-800 space-y-4 shadow-xl">
             <h2 className="text-base font-bold text-white flex items-center gap-2.5 border-b border-slate-800 pb-3">
               <HardDrive className="w-5 h-5 text-pink-400" />
@@ -374,7 +452,7 @@ export const Settings: React.FC = () => {
             </div>
           </div>
 
-          {/* Section 4: Scraper Microservice & Nextcloud OCC */}
+          {/* Section 5: Scraper Microservice & Nextcloud OCC */}
           <div className="glass-panel p-6 rounded-2xl border border-slate-800 space-y-4 shadow-xl">
             <h2 className="text-base font-bold text-white flex items-center gap-2.5 border-b border-slate-800 pb-3">
               <Cloud className="w-5 h-5 text-sky-400" />
@@ -459,7 +537,7 @@ export const Settings: React.FC = () => {
             </div>
           </div>
 
-          {/* Section 5: Notifications */}
+          {/* Section 6: Notifications */}
           <div className="glass-panel p-6 rounded-2xl border border-slate-800 space-y-4 shadow-xl">
             <h2 className="text-base font-bold text-white flex items-center gap-2.5 border-b border-slate-800 pb-3">
               <Bell className="w-5 h-5 text-amber-400" />
