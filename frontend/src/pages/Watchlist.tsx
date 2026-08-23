@@ -14,8 +14,9 @@ import {
 } from '../api';
 import { useToastStore } from '../stores';
 import { ConfirmDialog } from '../components/common';
-import { WatchlistModal, ManualDownloadModal } from '../components/modals';
+import { WatchlistModal } from '../components/modals';
 import type { WatchlistItem } from '../api/types';
+
 
 export const Watchlist: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -392,11 +393,9 @@ export const Watchlist: React.FC = () => {
         variant="danger"
         isLoading={isDeleting}
       />
-
-      {/* Manual Download Modal */}
-      <ManualDownloadModal />
     </div>
   );
 };
 
 export default Watchlist;
+

@@ -23,8 +23,8 @@ import {
 } from '../api';
 import { useUIStore, useToastStore } from '../stores';
 import { StatCard, Badge } from '../components/common';
-import { ManualDownloadModal } from '../components/modals';
 import { formatBytes, formatDate } from '../utils';
+
 
 export const Dashboard: React.FC = () => {
   const setManualModalOpen = useUIStore((state) => state.setManualModalOpen);
@@ -364,10 +364,10 @@ export const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Manual Download Modal */}
-      <ManualDownloadModal />
+      {/* Bottom spacing / container end */}
     </div>
   );
 };
 
 export default Dashboard;
+

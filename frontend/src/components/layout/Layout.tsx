@@ -1,6 +1,7 @@
 import React from 'react';
 import { Navbar } from './Navbar';
 import { ToastContainer } from '../common/ToastContainer';
+import { ManualDownloadModal } from '../modals/ManualDownloadModal';
 
 export interface LayoutProps {
   children?: React.ReactNode;
@@ -12,8 +13,12 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Toast Notification Stack */}
       <ToastContainer />
 
+      {/* Global Manual Download Modal */}
+      <ManualDownloadModal />
+
       {/* Main Top Navigation Header */}
       <Navbar />
+
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">

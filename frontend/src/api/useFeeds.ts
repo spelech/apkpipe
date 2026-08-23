@@ -94,6 +94,17 @@ export function useDeleteFeedMutation() {
   });
 }
 
+export function useToggleFeedMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, enabled }: { id: number; enabled: boolean }) =>
+      updateFeed(id, { enabled }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['feeds'] });
+    },
+  });
+}
+
 export function usePollSingleFeedMutation() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -117,3 +128,4 @@ export function usePollAllFeedsMutation() {
     },
   });
 }
+
