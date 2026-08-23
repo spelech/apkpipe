@@ -74,6 +74,8 @@ export interface FeedQueryParams {
   enabled?: boolean;
 }
 
+export type ResolverTier = 'real_debrid' | 'alldebrid' | 'jdownloader' | 'direct';
+
 export interface DownloadTask {
   id: number;
   watchlist_item_id?: number | null;
@@ -82,7 +84,7 @@ export interface DownloadTask {
   matched_version?: string | null;
   matched_releaser?: string | null;
   status: 'pending' | 'resolving' | 'downloading' | 'completed' | 'failed' | string;
-  download_tier?: 'real_debrid' | 'jdownloader' | 'direct' | null | string;
+  download_tier?: ResolverTier | null | string;
   mirror_urls?: string[];
   resolved_url?: string | null;
   file_path?: string | null;
@@ -140,6 +142,8 @@ export interface AppSettings {
   staging_dir: string;
   poll_interval_seconds: number;
   real_debrid_api_token: string;
+  alldebrid_api_key?: string;
+  alldebrid_agent?: string;
   jdownloader_email: string;
   jdownloader_password?: string;
   jdownloader_device_name: string;
@@ -160,6 +164,8 @@ export interface SettingsUpdateRequest {
   staging_dir?: string;
   poll_interval_seconds?: number;
   real_debrid_api_token?: string;
+  alldebrid_api_key?: string;
+  alldebrid_agent?: string;
   jdownloader_email?: string;
   jdownloader_password?: string;
   jdownloader_device_name?: string;
